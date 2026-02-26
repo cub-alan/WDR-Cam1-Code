@@ -1,6 +1,7 @@
-#include "CameraPinConfig.h"
+#include "CameraPinConfig.hpp"
 #include "esp_camera.h"
 #include <WiFi.h> 
+#include "app_httpd.hpp"
 
 const char *ssid = "iPhone";
 const char *password = "12345678";
@@ -8,15 +9,13 @@ const char *password = "12345678";
 void Cam_Init(void *Parametor);
 
 void Cam_Thread(void){
-  xTaskCreatePinnedToCore(Cam_Init,"Cam",8192,NULL,5,NULL,1); // (Task to run,debug name ,Stack Size in words, takes the pointer from Cam_Init , priority(1-24), weather to store handle , core running on)
+  xTaskCreatePinnedToCore(Cam_Init,"Cam",12288,NULL,5,NULL,1); // (Task to run,debug name ,Stack Size in words, takes the pointer from Cam_Init , priority(1-24), weather to store handle , core running on)
 }
 
 
 void Cam_Init(void *Parametor){
 
   // this function is built from sections from the CameraWebServer example code on esp32 by espressif
-
-  Serial.begin(115200); // set the serial monitor baud rate to 115200
 
   camera_config_t config;
 

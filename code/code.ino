@@ -1,6 +1,7 @@
-#include "MyLib.h"
+#include "MyLib.hpp"
 
 void setup() {
+  Serial.begin(115200);
   Cam_Thread();
 
 }

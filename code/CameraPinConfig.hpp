@@ -1,5 +1,5 @@
-#ifndef CAMERAPINCONFIG_H
-#define CAMERAPINCONFIG_H
+#ifndef CAMERAPINCONFIG_HPP
+#define CAMERAPINCONFIG_HPP
 
 // all pin data retreived from example code for the camera web serve from eps32 by espressif on ardoino ide
 
