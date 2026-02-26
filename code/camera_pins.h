@@ -1,8 +1,5 @@
-#ifndef CAMERAPINCONFIG_HPP
-#define CAMERAPINCONFIG_HPP
 
-// all pin data retreived from example code for the camera web serve from eps32 by espressif on ardoino ide
-
+#if defined(CAMERA_MODEL_XIAO_ESP32S3)
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM  10
@@ -20,7 +17,3 @@
 #define VSYNC_GPIO_NUM 38
 #define HREF_GPIO_NUM  47
 #define PCLK_GPIO_NUM  13
-
-void Cam_Thread();
-
-#endif

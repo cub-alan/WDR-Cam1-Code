@@ -1,4 +1,4 @@
-#include "CameraPinConfig.hpp"
+#include "CameraConfig.hpp"
 #include "esp_camera.h"
 #include <WiFi.h> 
 #include "app_httpd.hpp"
