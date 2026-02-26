@@ -1,6 +1,6 @@
 #ifndef MYLIB_HPP
 #define MYLIB_HPP
 
-#include "CameraPinConfig.hpp"
+#include "CameraConfig.hpp"
 
 #endif

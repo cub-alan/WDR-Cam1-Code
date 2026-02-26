@@ -1,10 +1,13 @@
 #include "CameraConfig.hpp"
 #include "esp_camera.h"
+#include "board_config.h"
+#include "camera_index.h"
 #include <WiFi.h> 
-#include "app_httpd.hpp"
 
 const char *ssid = "iPhone";
 const char *password = "12345678";
+
+void startCameraServer();
 
 void Cam_Init(void *Parametor);
 
@@ -42,7 +45,7 @@ void Cam_Init(void *Parametor){
   config.pixel_format = PIXFORMAT_JPEG;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 10;
-  config.fb_count = 2;
+  config.fb_count = 1;
 
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
