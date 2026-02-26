@@ -37,26 +37,26 @@ void GnssTask(void *GnssParameters){
       char c = GNSS.read();
       if (c == '\n'||c=='\r'){
         if (idx > 0){
-          buffer[idx] ='\0';
+          buff[idx] ='\0';
 
-          if ((strstr(buffer,"$GNGGA")&&validateChecksum(buffer)){
-            char* GPSfeilds[15];
-            int feildIDX = 0;
-            char* token = buffer;
+          if (strstr(buff,"$GPGGA")|| strstr(buff,"$GNGGA")&&Check(buff)){
+            char* GPSfield[15];
+            int fieldIDX = 0;
+            char* token = buff;
 
-            while (token && feildIDX < 15){
-              GPSfeild[feildIDX++] = token;
+            while (token && fieldIDX < 15){
+              GPSfield[fieldIDX++] = token;
               token = strchr(token,',');
               if (token) *token++ = '\0';
             }
-            if (feildIDX>7){
-              const char* StrLat = GPSfeild[2];
-              const char* DirLat = GPSfeild[3];
-              const char* StrLon = GPSfeild[4];
-              const char* DirLon = GPSfeild[5];
-              const char* StrAlt = GPSfeild[9];
+            if (fieldIDX>7){
+              const char* StrLat = GPSfield[2];
+              const char* DirLat = GPSfield[3];
+              const char* StrLon = GPSfield[4];
+              const char* DirLon = GPSfield[5];
+              const char* StrAlt = GPSfield[9];
 
-              int GPSquality = atoi(GPSfeild[6]);
+              int GPSquality = atoi(GPSfield[6]);
 
               if (GPSquality > 0 && strlen(StrLat) > 0 && strlen(StrLon) > 0){
                 double PureLat = atof(StrLat);
@@ -83,11 +83,11 @@ void GnssTask(void *GnssParameters){
               }
             }
           }
-          idx = 0;
+         idx = 0;
         }
       } 
-      else if(idx< sizeof(buffer)-1){
-        buffer[idx++] = c;
+      else if(idx< sizeof(buff)-1){
+        buff[idx++] = c;
       }
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // slight delay to allow for over tasks to run
