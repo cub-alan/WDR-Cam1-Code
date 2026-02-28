@@ -9,22 +9,55 @@ const char* password = "12345678";
 
 void setup() {
 
-  Serial.begin(115200);
-  
-  GnssInit();
+  setCpuFrequencyMhz(80);
 
-  Serial.println("gps test\n");
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
+  Serial.begin(115200);
+  delay(2000);
+  
+  Gnss_init();
+  delay(500);
+  Cam_init();
+  delay(500);
+
+  printf("\033[?25l"); // hide the cursor
+
+  int DotCount = 0;
+  Serial.print("\033[1;1H Wifi Connecting");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    if (DotCount < 3){
+      Serial.print(".");
+      DotCount++;
+    }
+    else{
+      Serial.print("\033[1;17H\033[K"); 
+      DotCount = 0;
+    }
+  }
+    Serial.println("\033[1;1H WIFI CONNECTED: ");
+    Serial.print("Stream URL: http://");
+    Serial.println(WiFi.localIP());
+
+    // Start the MJPEG streaming server on port 80
+    Server_init();
 
 }
 
 void loop() {
-
+  static int DotCount = 0;
   if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
     if (GPS.val) {
-        Serial.printf("LAT: %.6f, LON: %.6f, ALT: %.2f m\n", GPS.lat, GPS.lon, GPS.alt);
+        Serial.printf("\033[3;1H LAT: %.6f, LON: %.6f, ALT: %.2f m\n", GPS.lat, GPS.lon, GPS.alt);
     }
     else {
-      Serial.println("connecting\n");
+      Serial.print("\033[3;1H GPS STATUS: Connecting");
+      for(int i=0; i<DotCount; i++) Serial.print(".");
+      Serial.print("\033[K");
+      DotCount++;
+      if (DotCount > 3) DotCount = 0;
     }
     xSemaphoreGive(GPS.mutex);
   }

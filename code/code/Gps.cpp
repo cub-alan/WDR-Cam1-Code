@@ -5,7 +5,7 @@ HardwareSerial GNSS(1); // sets the gnss serial to uart 1
 
 GnssData GPS; // get the global structure for the gnss data
 
-void GnssInit(){
+void Gnss_init(){
   GPS.mutex = xSemaphoreCreateMutex(); // initialise the mutex for the structure
   GNSS.begin(9600,SERIAL_8N1,44,43); // set uart 1 baud rate to 9600 with pins 44 (TX) and 43 (RX)
   xTaskCreatePinnedToCore(GnssTask,"GNSS Task",4096,NULL,1,NULL,0); // create a gnss task on core 0 (task function, name of task, stack size, parameter passed in, priority of the task, pass back a handle, core number )

@@ -16,7 +16,7 @@ struct GnssData { // create a structure to hold all of the gnss data
 extern GnssData GPS; // create a global structure for the gnss data
 
 // initialise all gps.cpp functions
-void GnssInit();
+void Gnss_init();
 void GnssTask(void *GnssParameters);
 
 #endif
