@@ -39,7 +39,7 @@ void GnssTask(void *GnssParameters){
         if (idx > 0){
           buff[idx] ='\0';
 
-          if (strstr(buff,"$GPGGA")|| strstr(buff,"$GNGGA")&&Check(buff)){
+          if ((strstr(buff,"$GPGGA") || strstr(buff,"$GNGGA"))&&Check(buff)){
             char* GPSfield[15];
             int fieldIDX = 0;
             char* token = buff;

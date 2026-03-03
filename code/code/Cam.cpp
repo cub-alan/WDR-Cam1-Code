@@ -89,12 +89,12 @@ void Cam_init() {
     Debug.pin_sscb_scl = SIOC_GPIO_NUM;
     Debug.pin_pwdn = PWDN_GPIO_NUM;
     Debug.pin_reset = RESET_GPIO_NUM;
-    Debug.xclk_freq_hz = 20000000;
-    Debug.frame_size = FRAMESIZE_VGA;
+    Debug.xclk_freq_hz = 10000000;
+    Debug.frame_size = FRAMESIZE_QVGA;
     Debug.pixel_format = PIXFORMAT_JPEG;
     Debug.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
     Debug.fb_location = CAMERA_FB_IN_PSRAM;
-    Debug.jpeg_quality = 12;
+    Debug.jpeg_quality = 20;
     Debug.fb_count = 1;
 
     esp_err_t error = esp_camera_init(&Debug); //

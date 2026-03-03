@@ -17,9 +17,9 @@ void setup() {
   delay(2000);
   
   Gnss_init();
-  delay(500);
+  delay(2000);
   Cam_init();
-  delay(500);
+  delay(2000);
 
   printf("\033[?25l"); // hide the cursor
 
