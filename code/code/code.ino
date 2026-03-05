@@ -3,6 +3,7 @@
 #include "soc/rtc_cntl_reg.h"
 #include "Gps.hpp"
 #include "Cam.hpp"
+#include "OTA.hpp"
 
 const char* ssid = "iPhone";
 const char* password = "12345678";
@@ -14,6 +15,7 @@ void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
   Serial.begin(115200);
+  OTA_Init();
   delay(2000);
   
   Gnss_init();
@@ -47,6 +49,7 @@ void setup() {
 }
 
 void loop() {
+  OTA_Handle();
   static int DotCount = 0;
   if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
     if (GPS.val) {
