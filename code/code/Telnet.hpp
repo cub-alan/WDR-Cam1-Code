@@ -6,7 +6,7 @@
 WiFiServer telnetServer(23);
 WiFiClient telnetClient;
 
-void RemoteSerial_Init() {
+void Telnet_Init() {
     telnetServer.begin();
     telnetServer.setNoDelay(true);
 }

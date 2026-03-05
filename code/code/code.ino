@@ -4,30 +4,46 @@
 #include "Gps.hpp"
 #include "Cam.hpp"
 #include "OTA.hpp"
+#include "Telnet.hpp"
 
 const char* ssid = "iPhone";
 const char* password = "12345678";
 
 void setup() {
 
-  setCpuFrequencyMhz(240);
+  setCpuFrequencyMhz(80);
 
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
   Serial.begin(115200);
 
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm); 
+
+  int try = 0;
+
+  while (WiFi.status() != WL_CONNECTED && try < 20) {
     delay(500);
     Serial.print(".");
+    try++;
   }
 
-  OTA_Init();// On Port 81
-  RemoteSerial_Init();// On Port 23
-  
+  delay(3000);
+
   Gnss_init();
+  delay(3000);
+
   Cam_init();
+  delay(2000);
+
+  OTA_Init();// On Port 81
+  Telnet_Init();// On Port 23
   Server_init();// Camera on Port 80
+
+  Serial.println("\033[1;1H SYSTEM READY");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
 
   Wifi_Terminal_Write("\033[?25l");// hide the cursor
   Wifi_Terminal_Write("\033[2J");// clear screen
