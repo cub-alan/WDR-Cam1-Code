@@ -10,42 +10,31 @@ const char* password = "12345678";
 
 void setup() {
 
-  setCpuFrequencyMhz(80);
+  setCpuFrequencyMhz(240);
 
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
   Serial.begin(115200);
-  OTA_Init();
-  delay(2000);
-  
-  Gnss_init();
-  delay(2000);
-  Cam_init();
-  delay(2000);
 
-  printf("\033[?25l"); // hide the cursor
-
-  int DotCount = 0;
-  Serial.print("\033[1;1H Wifi Connecting");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    if (DotCount < 3){
-      Serial.print(".");
-      DotCount++;
-    }
-    else{
-      Serial.print("\033[1;17H\033[K"); 
-      DotCount = 0;
-    }
+    Serial.print(".");
   }
-    Serial.println("\033[1;1H WIFI CONNECTED: ");
-    Serial.print("Stream URL: http://");
-    Serial.println(WiFi.localIP());
 
-    // Start the MJPEG streaming server on port 80
-    Server_init();
+  OTA_Init();// On Port 81
+  RemoteSerial_Init();// On Port 23
+  
+  Gnss_init();
+  Cam_init();
+  Server_init();// Camera on Port 80
 
+  Wifi_Terminal_Write("\033[?25l");// hide the cursor
+  Wifi_Terminal_Write("\033[2J");// clear screen
+  Wifi_Terminal_Write("\033[1;1H WIFI CONNECTED\n");
+  Wifi_Terminal_Write("Camera Stream: http://%s\n", WiFi.localIP().toString().c_str());
+  Wifi_Terminal_Write("OTA Update: http://%s:81\n", WiFi.localIP().toString().c_str());
+  Wifi_Terminal_Write("Wireless Log: telnet %s\n", WiFi.localIP().toString().c_str());
 }
 
 void loop() {
@@ -53,16 +42,16 @@ void loop() {
   static int DotCount = 0;
   if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
     if (GPS.val) {
-        Serial.printf("\033[3;1H LAT: %.6f, LON: %.6f, ALT: %.2f m\n", GPS.lat, GPS.lon, GPS.alt);
+        Wifi_Terminal_Write("\033[3;1H LAT: %.6f, LON: %.6f, ALT: %.2f m\n", GPS.lat, GPS.lon, GPS.alt);
     }
     else {
-      Serial.print("\033[3;1H GPS STATUS: Connecting");
+      Wifi_Terminal_Write("\033[3;1H GPS STATUS: Connecting");
       for(int i=0; i<DotCount; i++) Serial.print(".");
-      Serial.print("\033[K");
+      Wifi_Terminal_Write("\033[K");
       DotCount++;
       if (DotCount > 3) DotCount = 0;
     }
     xSemaphoreGive(GPS.mutex);
   }
-  delay(2000);
+  delay(1000);
 }

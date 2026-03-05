@@ -3,51 +3,40 @@
 #include <WebServer.h>
 #include <Update.h>
 
-extern const char* ssid;
-extern const char* password;
 
-WebServer server(80);
+WebServer ota_server(81);
 
 void OTA_Init() {
-
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-  }
-
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html",
+  ota_server.on("/", HTTP_GET, []() {
+    ota_server.send(200, "text/html",
+      "<h3>ESP32 OTA Update</h3>"
       "<form method='POST' action='/update' enctype='multipart/form-data'>"
-      "<input type='file' name='update'>"
+      "<input type='file' name='update'> "
       "<input type='submit' value='Update'>"
       "</form>");
   });
 
-  server.on("/update", HTTP_POST, []() {
-    server.send(200, "text/plain", "Update Complete. Rebooting...");
+  ota_server.on("/update", HTTP_POST, []() {
+    ota_server.send(200, "text/plain", (Update.hasError()) ? "Update Failed" : "Update Success. Rebooting...");
+    delay(1000);
     ESP.restart();
   }, []() {
-
-    HTTPUpload& upload = server.upload();
-
+    HTTPUpload& upload = ota_server.upload();
     if (upload.status == UPLOAD_FILE_START) {
-      Update.begin();
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+      else Update.printError(Serial);
     }
-
-    if (upload.status == UPLOAD_FILE_WRITE) {
-      Update.write(upload.buf, upload.currentSize);
-    }
-
-    if (upload.status == UPLOAD_FILE_END) {
-      Update.end(true);
-    }
-
   });
 
-  server.begin();
+  ota_server.begin();
+  Serial.println("OTA Server started on port 81");
 }
 
 void OTA_Handle() {
-  server.handleClient();
+  ota_server.handleClient();
 }
