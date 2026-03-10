@@ -13,6 +13,7 @@ const char* password = "12345678";
 //IPAddress gateway(172, 20, 10, 1);   // iPhone Hotspot gateway is usually .1
 //IPAddress subnet(255, 255, 255, 240); // iPhone uses a specific subnet mask
 //IPAddress primaryDNS(8, 8, 8, 8);    // Google DNS
+void startCameraServer();
 
 void setup() {
 
