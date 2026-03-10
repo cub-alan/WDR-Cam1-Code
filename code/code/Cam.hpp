@@ -3,6 +3,7 @@
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
+#include <WiFi.h>
 
 // create the functions for the camera 
 void Cam_init();
