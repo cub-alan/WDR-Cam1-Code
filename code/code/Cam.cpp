@@ -113,7 +113,7 @@ void Cam_init() {
 
 void Server_init() {
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
-    server_config.server_port = 81;
+    server_config.server_port = 80;
     server_config.ctrl_port = 32768; // Avoid conflict with other services
 
     // Define the URI for the stream
@@ -127,7 +127,7 @@ void Server_init() {
     // Start the server
     if (httpd_start(&Server, &server_config) == ESP_OK) {
         httpd_register_uri_handler(Server, &stream_uri);
-        Serial.println("Camera server started on port 81");
+        Serial.println("Camera server started on port 80");
     } else {
         Serial.println("Failed to start camera server");
     }
