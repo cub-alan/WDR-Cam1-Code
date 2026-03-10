@@ -102,8 +102,9 @@ void Cam_init() {
     // Manual sensor adjustments for better stability
     sensor_t * s = esp_camera_sensor_get();
     if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);        // flip it back
-    s->set_brightness(s, 1);   // up the brightness just a bit
+    s->set_vflip(s, 1);        // flip it vertically back
+    s->set_hflip(s, 1);        // flip it horozontlly back
+    s->set_brightness(s, -2);   // reduce the brightness 
     s->set_saturation(s, -2);  // lower the saturation
     }
     if (config.pixel_format == PIXFORMAT_JPEG) {
