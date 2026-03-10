@@ -127,7 +127,7 @@ void Server_init() {
     // Start the server
     if (httpd_start(&Server, &server_config) == ESP_OK) {
         httpd_register_uri_handler(Server, &stream_uri);
-        Serial.println("Camera server started on port 80");
+        Serial.println("Camera server started on port 81");
     } else {
         Serial.println("Failed to start camera server");
     }
