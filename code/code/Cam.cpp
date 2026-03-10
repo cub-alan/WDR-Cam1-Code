@@ -90,7 +90,7 @@ void Cam_init() {
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
-  config.fb_count = 1;
+  config.fb_count = 2;
 
     // Initialize the camera
     esp_err_t error = esp_camera_init(&config); 
@@ -113,7 +113,7 @@ void Cam_init() {
 
 void Server_init() {
     httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
-    server_config.server_port = 80;
+    server_config.server_port = 81;
     server_config.ctrl_port = 32768; // Avoid conflict with other services
 
     // Define the URI for the stream
