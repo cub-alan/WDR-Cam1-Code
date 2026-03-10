@@ -46,29 +46,27 @@ void setup() {
 }
 
 void loop() {
-  /*
-  OTA_Handle();
-  Telnet_Handle(); // Added from the previous Telnet improvement
 
-  static unsigned long lastUpdate = 0;
-  static int DotCount = 0;
+  static unsigned long GnssUpdate = 0;
 
-  // Use non-blocking timing instead of delay(1000)
-  if (millis() - lastUpdate > 1000) {
-    lastUpdate = millis();
+  //nonblocking delay(1000)
+  if (millis() - GnssUpdate > 1000) {
+    GnssUpdate = millis();
 
-    if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
-      if (GPS.val) {
-          Wifi_Terminal_Write("\033[3;1H LAT: %.6f, LON: %.6f, ALT: %.2f m\n", GPS.lat, GPS.lon, GPS.alt);
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.print("System Active | IP: ");
+      Serial.print(WiFi.localIP());
+      
+      if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
+        if (GPS.val) {
+            Serial.printf(" | GPS: LAT: %.6f, LON: %.6f\n", GPS.lat, GPS.lon);
+        } else {
+            Serial.println(" | GPS: Searching...");
+        }
+        xSemaphoreGive(GPS.mutex);
       }
-      else {
-        Wifi_Terminal_Write("\033[3;1H GPS STATUS: Connecting");
-        for(int i=0; i<DotCount; i++) Wifi_Terminal_Write(".");
-        Wifi_Terminal_Write("\033[K");
-        DotCount = (DotCount + 1) % 4;
-      }
-      xSemaphoreGive(GPS.mutex);
+    } else {
+      Serial.println("WiFi Disconnected! Attempting reconnect...");
     }
   }
-  */
 }
