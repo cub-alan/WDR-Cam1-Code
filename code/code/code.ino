@@ -1,8 +1,6 @@
 #include <WiFi.h>
 #include "Gps.hpp"
 #include "Cam.hpp"
-#include "OTA.hpp"
-#include "Telnet.hpp"
 
 // set the ssid and password to create the web server on (using my phone hotspot)
 const char* ssid = "iPhone"; 
@@ -44,20 +42,10 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
   
-
-  // 4. Staggered Boot (Wait 3 seconds for power to settle)
-  //delay(3000);
-
   //Gnss_init();
   //Serial.println("GNSS Initialized");
   //delay(3000); // Wait again
 
-  // 5. Start Camera (This is the high-power event)
-  //Cam_init();
-  //Serial.println("CAM Initialized");
-  //delay(2000);
-
-  // 6. Start Servers
   //OTA_Init();
   //Telnet_Init();
 }
