@@ -53,20 +53,13 @@ void loop() {
   if (millis() - GnssUpdate > 1000) {
     GnssUpdate = millis();
 
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.print("System Active | IP: ");
-      Serial.print(WiFi.localIP());
-      
-      if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
-        if (GPS.val) {
-            Serial.printf(" | GPS: LAT: %.6f, LON: %.6f\n", GPS.lat, GPS.lon);
-        } else {
-            Serial.println(" | GPS: Searching...");
-        }
-        xSemaphoreGive(GPS.mutex);
+    if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
+      if (GPS.val) {
+          Serial.printf("| GPS: LAT: %.6f, LON: %.6f\", GPS.lat, GPS.lon");
+      } else {
+          Serial.print("| GPS: Searching...\n ");
       }
-    } else {
-      Serial.println("WiFi Disconnected! Attempting reconnect...");
+      xSemaphoreGive(GPS.mutex);
     }
-  }
+  } 
 }

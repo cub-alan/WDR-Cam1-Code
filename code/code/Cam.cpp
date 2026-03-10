@@ -36,7 +36,7 @@ const char index_html[] PROGMEM = R"=====(
 <style>
 body{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #264D2B;
+    background: #C7E9FF;
     color: #000000;
     margin: 0;
     display: flex;
