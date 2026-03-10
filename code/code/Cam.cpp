@@ -1,6 +1,8 @@
 #include "Cam.hpp"
+#include "Arduino.h"
+#include "Gps.hpp"
 
-// XIAO ESP32-S3 Sense Pin Definitions retreived from camera webserver example code
+// XIAO ESP32-S3 Sense Pin Definitions retrieved from camera webserver example code
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM  10
@@ -20,6 +22,190 @@
 #define PCLK_GPIO_NUM  13
 
 httpd_handle_t Server = NULL;
+
+
+// HTML Dashboard
+const char index_html[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html>
+<head> <title>Weed Detection Robot - Live View</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Leaflet Map Library -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+body{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #264D2B;
+    color: #000000;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.container{
+    width: 100%;
+    max-width: 640px;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+h1{
+    font-size: 24px;
+    margin: 0;
+    color: #000000;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+.stream-box {
+    width: 100%;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid #222;
+}
+.stream-box img {
+    width: 100%;
+    display: block;
+}
+#map {
+    width: 100%;
+    height: 300px;
+    margin-top: 20px;
+    border-radius: 12px;
+    border: 1px solid #222;
+}
+.data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+}
+.data-card {
+    background: #000000;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #222;
+    transition: border-color 0.3s;
+}
+.data-card:hover {
+    border-color: #444;
+}
+.label {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+.value {
+    font-size: 16px;
+    font-weight: 600;
+    font-family: "JetBrains Mono", monospace;
+    color: #fff;
+}
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+.status-locked {
+    background: #4caf50;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+}
+.dots::after {
+    content: '.';
+    animation: dots 1.5s infinite;
+}
+@keyframes dots {
+    0%,32% {content: '.';}
+    33%,65% {content: '..';}
+    66%,100% {content: '...';}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>Weed Detection Robot</h1>
+<div id="clock" style="font-size:12px;color:#403F3F;">ONLINE</div>
+</div>
+<div class="stream-box">
+<img src="/stream" id="stream">
+</div>
+<!-- MAP -->
+<div id="map"></div>
+<div class="data-grid">
+<div class="data-card">
+<div class="label">GNSS Status</div>
+<div class="value" id="gps-status">
+<span class="status-dot status-searching"></span>
+Finding<span class="dots"></span>
+</div>
+</div>
+<div class="data-card">
+<div class="label">GPS Time (UTC)</div>
+<div class="value" id="gps-time">00:00:00</div>
+</div>
+<div class="data-card">
+<div class="label">Altitude</div>
+<div class="value" id="alt">0.00 m</div>
+</div>
+<div class="data-card">
+<div class="label">Coordinates</div>
+<div class="value" id="coords">0.000000, 0.000000</div>
+</div>
+</div>
+</div>
+<script>
+var map = L.map('map').setView([0,0], 18);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+}).addTo(map);
+var marker = L.marker([0,0]).addTo(map);
+function updateStatus() {
+    fetch('/status')
+    .then(response => response.json())
+    .then(data => {
+        if (data.valid) {
+            document.getElementById('gps-status').innerHTML ='<span class="status-dot status-locked"></span>Locked';
+            document.getElementById('coords').innerText = data.lat.toFixed(6) + ', ' + data.lon.toFixed(6);
+            document.getElementById('alt').innerText = data.alt.toFixed(2) + ' m';
+            const h = String(data.h).padStart(2,'0');
+            const m = String(data.m).padStart(2,'0');
+            const s = String(data.s).padStart(2,'0');
+            document.getElementById('gps-time').innerText = h + ':' + m + ':' + s;
+            marker.setLatLng([data.lat, data.lon]);
+            map.panTo([data.lat, data.lon]);
+        }
+        else {
+            document.getElementById('gps-status').innerHTML ='<span class="status-dot status-searching"></span>Finding<span class="dots"></span>';
+            document.getElementById('coords').innerText ='WAITING FOR LOCK...';
+            document.getElementById('gps-time').innerText ='00:00:00';
+        }
+    })
+.catch(err => console.error('Fetch error:', err));
+}
+setInterval(updateStatus, 1000);
+</script>
+</body>
+</html>)=====";
+
+//handler for the html 
+static esp_err_t index_handler(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, index_html, strlen(index_html));
+}
 
 // This handler serves the MJPEG stream
 static esp_err_t stream_handler(httpd_req_t *req) {
@@ -64,8 +250,23 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     return res;
 }
 
+// handler for the gnss
+static esp_err_t status_handler(httpd_req_t *req) {
+    char json_response[160];
+    if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
+        snprintf(json_response, sizeof(json_response), 
+                 "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", 
+                 GPS.lat, GPS.lon, GPS.alt, GPS.hour, GPS.minute, GPS.second, GPS.val ? "true" : "false");
+        xSemaphoreGive(GPS.mutex);
+    } else {
+        strcpy(json_response, "{\"error\":\"mutex_timeout\"}");
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, json_response, strlen(json_response));
+}
+
 void Cam_init() {
-    camera_config_t config;
+  camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
   config.pin_d0 = Y2_GPIO_NUM;
@@ -89,7 +290,7 @@ void Cam_init() {
   config.pixel_format = PIXFORMAT_JPEG;  // for streaming
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
+  config.jpeg_quality = 5;
   config.fb_count = 2;
 
     // Initialize the camera
@@ -103,8 +304,8 @@ void Cam_init() {
     sensor_t * s = esp_camera_sensor_get();
     if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1);        // flip it vertically back
-    s->set_brightness(s, -2);   // reduce the brightness 
-    s->set_saturation(s, -2);  // lower the saturation
+    s->set_brightness(s, -3);   // reduce the brightness 
+    s->set_saturation(s, -1);  // lower the saturation
     }
     if (config.pixel_format == PIXFORMAT_JPEG) {
     s->set_framesize(s, FRAMESIZE_QVGA);
@@ -116,17 +317,34 @@ void Server_init() {
     server_config.server_port = 80;
     server_config.ctrl_port = 32768; // Avoid conflict with other services
 
+    // Define the URI for the index
+    httpd_uri_t index_uri = {
+        .uri      = "/",
+        .method   = HTTP_GET,
+        .handler  = index_handler,
+        .user_ctx = NULL
+    };
     // Define the URI for the stream
     httpd_uri_t stream_uri = {
-        .uri      = "/",
+        .uri      = "/stream",
         .method   = HTTP_GET,
         .handler  = stream_handler,
         .user_ctx = NULL
     };
+    // Define the URI for the status
+    httpd_uri_t status_uri = {
+        .uri      = "/status",
+        .method   = HTTP_GET,
+        .handler  = status_handler,
+        .user_ctx = NULL
+    };
+
     
     // Start the server
     if (httpd_start(&Server, &server_config) == ESP_OK) {
+        httpd_register_uri_handler(Server, &index_uri);
         httpd_register_uri_handler(Server, &stream_uri);
+        httpd_register_uri_handler(Server, &status_uri);
         Serial.println("Camera server started on port 80");
     } else {
         Serial.println("Failed to start camera server");
