@@ -10,7 +10,11 @@ void setup() {
 
   Serial.begin(115200);
   Serial.setDebugOutput(true);
-  Serial.println();
+  for(int i=0;i<40;i++) Serial.println(); // clear the terminal 
+
+  Gnss_init();
+  Serial.println("GNSS Initialized");
+  delay(2000); // Wait 2000 ms
 
   Cam_init();
   Serial.println("CAM Initialized");
@@ -38,28 +42,43 @@ void setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
-  
-  Gnss_init();
-  Serial.println("GNSS Initialized");
-  delay(2000); // Wait again
 
 }
 
-void loop() {
 
-  static unsigned long GnssUpdate = 0;
+void loop()
+{
+  static unsigned long timer = 0;
 
-  //nonblocking delay(1000)
-  if (millis() - GnssUpdate > 1000) {
-    GnssUpdate = millis();
+  if (millis() - timer > 1000)
+  {
+    timer = millis();
 
-    if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
-      if (GPS.val) {
-          Serial.printf("| GPS: LAT: %.6f, LON: %.6f\", GPS.lat, GPS.lon");
-      } else {
-          Serial.print("| GPS: Searching...\n ");
-      }
+    if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20)))
+    {
+      bool fix_check = GPS.val;
+      bool data_check = GPS.dataReceived;
+
+      double lat = GPS.lat;
+      double lon = GPS.lon;
+      int sats = GPS.satellites;
+
+      GPS.dataReceived = false;
+
       xSemaphoreGive(GPS.mutex);
+
+      if (fix_check)
+      {
+        Serial.printf("| GPS FIX | LAT: %.6f LON: %.6f SATS: %d\n", lat, lon, sats);
+      }
+      else if (data_check)
+      {
+        Serial.println("| GPS COMMUNICATING | Waiting for satellite fix...");
+      }
+      else
+      {
+        Serial.println("| GPS NO DATA | Check wiring or GPS power.");
+      }
     }
-  } 
+  }
 }

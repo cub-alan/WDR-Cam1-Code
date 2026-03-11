@@ -1,95 +1,154 @@
 #include "Gps.hpp"
 #include <HardwareSerial.h>
+#include <string.h>
+#include <stdlib.h>
 
-HardwareSerial GNSS(1); // sets the gnss serial to uart 1
+HardwareSerial GNSS(1);
+GnssData GPS;
 
-GnssData GPS; // get the global structure for the gnss data
+#define GNSS_RX 44
+#define GNSS_TX 43
+#define GNSS_BAUD 9600
 
-void Gnss_init(){
-  GPS.mutex = xSemaphoreCreateMutex(); // initialise the mutex for the structure
-  GNSS.begin(9600,SERIAL_8N1,44,43); // set uart 1 baud rate to 9600 with pins 44 (TX) and 43 (RX)
-  xTaskCreatePinnedToCore(GnssTask,"GNSS Task",4096,NULL,1,NULL,0); // create a gnss task on core 0 (task function, name of task, stack size, parameter passed in, priority of the task, pass back a handle, core number )
+bool Checksum(const char* sentence)
+{
+  if (*sentence != '$') return false;
+
+  uint8_t sum = 0;
+  sentence++;
+
+  while (*sentence && *sentence != '*')
+  {
+    sum ^= *sentence++;
+  }
+
+  if (*sentence == '*')
+  {
+    int received = strtol(sentence + 1, NULL, 16);
+    return sum == received;
+  }
+
+  return false;
 }
 
-bool Check (const char* s){
-  if (s[0] != '$'){ // all gnss data starts with $ so this checks its is reading correctly 
-    return false; // if it doesnt start with $ its not valid
-  }
-  uint8_t CheckSum = 0;
-  const char* p = s+1; // skips over the $ at the start 
+void Gnss_init()
+{
+  GPS.mutex = xSemaphoreCreateMutex();
 
-  // xor all characters till the end of the string
-  while (*p && *p != '*'){
-    CheckSum ^= *p++;
-  }
-  if (*p == '*'){ // if the end is reached compare the calculated checksum with the received checksum
-    long receive = strtol(p+1,NULL,16); // convert the string to a long int
-    return CheckSum == receive;
-  }
-  return false; //if the end is not reached return false
+  GNSS.begin(GNSS_BAUD, SERIAL_8N1, GNSS_RX, GNSS_TX);
+
+  xTaskCreatePinnedToCore(
+      GnssTask,
+      "GNSS Task",
+      4096,
+      NULL,
+      1,
+      NULL,
+      1);
 }
 
-void GnssTask(void *GnssParameters){
-  char buff[128];
+void GnssTask(void *param)
+{
+  char line[128];
   int idx = 0;
-  while (true){
-    while (GNSS.available()){ // wait until the gnss is veiwable
+
+  while (true)
+  {
+    while (GNSS.available())
+    {
       char c = GNSS.read();
-      if (c == '\n'||c=='\r'){
-        if (idx > 0){
-          buff[idx] ='\0';
 
-          if ((strstr(buff,"$GPGGA") || strstr(buff,"$GNGGA"))&&Check(buff)){
-            char* GPSfield[15];
-            int fieldIDX = 0;
-            char* token = buff;
+      if (c == '\r') continue;
 
-            while (token && fieldIDX < 15){
-              GPSfield[fieldIDX++] = token;
-              token = strchr(token,',');
-              if (token) *token++ = '\0';
-            }
-            if (fieldIDX>7){
-              const char* StrLat = GPSfield[2];
-              const char* DirLat = GPSfield[3];
-              const char* StrLon = GPSfield[4];
-              const char* DirLon = GPSfield[5];
-              const char* StrAlt = GPSfield[9];
+      if (c == '\n')
+      {
+        line[idx] = '\0';
+        idx = 0;
 
-              int GPSquality = atoi(GPSfield[6]);
+        if (strlen(line) < 10) continue;
 
-              if (GPSquality > 0 && strlen(StrLat) > 0 && strlen(StrLon) > 0){
-                double PureLat = atof(StrLat);
-                int DegLat = (int)(PureLat / 100);
-                double Latitude = DegLat +(PureLat - (DegLat*100))/60.0;
-                if (DirLat[0] == 'S'){
-                  Latitude = -Latitude;
-                } 
-                double PureLon = atof(StrLon);
-                int DegLon = (int)(PureLon / 100);
-                double Longitude = DegLon +(PureLon - (DegLon*100))/60.0;
-                if (DirLon[0] == 'W'){
-                  Longitude = -Longitude;
-                } 
-                float Altitude = atof(StrAlt);
+        if (!Checksum(line)) continue;
 
-                if (xSemaphoreTake(GPS.mutex,portMAX_DELAY)){
-                  GPS.lat = Latitude;
-                  GPS.lon = Longitude;
-                  GPS.alt = Altitude;
-                  GPS.val = true;
-                  xSemaphoreGive(GPS.mutex);
-                }
-              }
-            }
-          }
-         idx = 0;
+        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY))
+        {
+          GPS.dataReceived = true;
+          xSemaphoreGive(GPS.mutex);
         }
-      } 
-      else if(idx< sizeof(buff)-1){
-        buff[idx++] = c;
+
+        if (strncmp(line, "$GNGGA", 6) != 0 && strncmp(line, "$GPGGA", 6) != 0)
+          continue;
+
+        char *fields[15];
+        int field = 0;
+
+        char *token = strtok(line, ",");
+
+        while (token && field < 15)
+        {
+          fields[field++] = token;
+          token = strtok(NULL, ",");
+        }
+
+        if (field < 10) continue;
+
+        int quality = atoi(fields[6]);
+
+        if (quality == 0) continue;
+
+        const char* latStr = fields[2];
+        const char* latDir = fields[3];
+        const char* lonStr = fields[4];
+        const char* lonDir = fields[5];
+
+        const char* altStr = fields[9];
+        const char* satStr = fields[7];
+        const char* timeStr = fields[1];
+
+        double latRaw = atof(latStr);
+        double lonRaw = atof(lonStr);
+
+        int latDeg = latRaw / 100;
+        int lonDeg = lonRaw / 100;
+
+        double latitude = latDeg + (latRaw - latDeg * 100) / 60.0;
+        double longitude = lonDeg + (lonRaw - lonDeg * 100) / 60.0;
+
+        if (latDir[0] == 'S') latitude = -latitude;
+        if (lonDir[0] == 'W') longitude = -longitude;
+
+        float altitude = atof(altStr);
+        int satellites = atoi(satStr);
+
+        int hour = 0, minute = 0, second = 0;
+
+        if (strlen(timeStr) >= 6)
+        {
+          hour = (timeStr[0]-'0')*10 + (timeStr[1]-'0');
+          minute = (timeStr[2]-'0')*10 + (timeStr[3]-'0');
+          second = (timeStr[4]-'0')*10 + (timeStr[5]-'0');
+        }
+
+        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY))
+        {
+          GPS.lat = latitude;
+          GPS.lon = longitude;
+          GPS.alt = altitude;
+          GPS.satellites = satellites;
+          GPS.hour = hour;
+          GPS.minute = minute;
+          GPS.second = second;
+          GPS.val = true;
+          xSemaphoreGive(GPS.mutex);
+        }
+      }
+      else
+      {
+        if (idx < sizeof(line) - 1)
+          line[idx++] = c;
+        else
+          idx = 0;
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(100)); // slight delay to allow for over tasks to run
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

@@ -1,25 +1,31 @@
 #ifndef GPS_HPP
 #define GPS_HPP
 
-#include "Arduino.h"
-#include "freertos/FreeRTOS.h" // library to allow for multithreading 
-#include "freertos/semphr.h" // library to allow for mutex use 
+#include <Arduino.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
-struct GnssData { // create a structure to hold all of the gnss data
-  float lat = 0.0; // create a variable for latitude
-  float lon = 0.0; // create a variable for longatude
-  float alt = 0.0; // create a variable for num of satilitse connected to
+struct GnssData {
+
+  double lat = 0.0;
+  double lon = 0.0;
+  float alt = 0.0;
+
+  int satellites = 0;
+
   int hour = 0;
   int minute = 0;
   int second = 0;
-  bool val = false; // create a validation variable
-  SemaphoreHandle_t mutex; // create a mutex for the structure
+
+  bool val = false;
+  bool dataReceived = false;
+
+  SemaphoreHandle_t mutex;
 };
 
-extern GnssData GPS; // create a global structure for the gnss data
+extern GnssData GPS;
 
-// initialise all gps.cpp functions
 void Gnss_init();
-void GnssTask(void *GnssParameters);
+void GnssTask(void *param);
 
 #endif
