@@ -36,7 +36,7 @@ const char index_html[] PROGMEM = R"=====(
 <style>
 body{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #C7E9FF;
+    background: #B7BEA0;
     color: #000000;
     margin: 0;
     display: flex;
@@ -64,17 +64,80 @@ h1{
     text-transform: uppercase;
     letter-spacing: 2px;
 }
-.stream-box {
+.cam-tabs {
+    display: flex;
     width: 100%;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+.cam-btn {
+    flex: 1;
+    padding: 10px;
     background: #000;
-    border-radius: 12px;
+    color: #666;
+    border: none;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.2s;
+}
+.cam-btn.active {
+    background: #222;
+    color: #fff;
+    border-bottom: 2px solid #4caf50;
+}
+.stream-box {
+    background: #000;
+    border-radius: 0 0 12px 12px;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     border: 1px solid #222;
+    position: relative;
+    width: 100%;
 }
 .stream-box img {
     width: 100%;
+    display: none;
+    min-height: 240px;
+}
+.stream-box img.active {
     display: block;
+}
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    z-index: 5;
+}
+.loading-overlay.active {
+    display: flex;
+}
+.stream-label {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    pointer-events: none;
 }
 #map {
     width: 100%;
@@ -123,6 +186,12 @@ h1{
     background: #4caf50;
     box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
 }
+.status-searching {
+    background: #f44336;
+    animation: blink 1s infinite;
+    box-shadow: 0 0 10px rgba(244, 67, 54, 0.4);
+}
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 .dots::after {
     content: '.';
     animation: dots 1.5s infinite;
@@ -138,11 +207,21 @@ h1{
 <div class="container">
 <div class="header">
 <h1>Weed Detection Robot</h1>
-<div id="clock" style="font-size:12px;color:#403F3F;">ONLINE</div>
+<div id="clock" style="font-size:12px;color:#666;">ONLINE</div>
 </div>
+
+<div class="cam-tabs">
+    <button id="btn-cam1" class="cam-btn active" onclick="switchCam(1)">Cam 1 (Front)</button>
+    <button id="btn-cam2" class="cam-btn" onclick="switchCam(2)">Cam 2 (Rear)</button>
+</div>
+
 <div class="stream-box">
-<img src="/stream" id="stream">
+    <div id="cam-loading" class="loading-overlay">Connecting<span class="dots"></span></div>
+    <img src="/stream" id="stream-primary" class="active">
+    <img src="" id="stream-secondary" alt="Secondary Feed Offline" onload="hideLoading()" onerror="showError()">
+    <div id="active-label" class="stream-label">Primary Feed</div>
 </div>
+
 <!-- MAP -->
 <div id="map"></div>
 <div class="data-grid">
@@ -162,6 +241,10 @@ Finding<span class="dots"></span>
 <div class="value" id="alt">0.00 m</div>
 </div>
 <div class="data-card">
+<div class="label">Satellites</div>
+<div class="value" id="sats">0</div>
+</div>
+<div class="data-card">
 <div class="label">Coordinates</div>
 <div class="value" id="coords">0.000000, 0.000000</div>
 </div>
@@ -173,6 +256,62 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
 }).addTo(map);
 var marker = L.marker([0,0]).addTo(map);
+
+// --- CONFIGURATION ---
+// Change this to your secondary camera's IP address
+const SECONDARY_CAM_IP = "http://172.20.10.5"; 
+
+function hideLoading() {
+    document.getElementById('cam-loading').classList.remove('active');
+}
+
+function showError() {
+    const loading = document.getElementById('cam-loading');
+    loading.innerHTML = 'Connection Failed';
+    loading.classList.add('active');
+}
+
+function switchCam(id) {
+    const cam1 = document.getElementById('stream-primary');
+    const cam2 = document.getElementById('stream-secondary');
+    const btn1 = document.getElementById('btn-cam1');
+    const btn2 = document.getElementById('btn-cam2');
+    const label = document.getElementById('active-label');
+    const loading = document.getElementById('cam-loading');
+
+    if (id === 1) {
+        cam1.classList.add('active');
+        cam2.classList.remove('active');
+        btn1.classList.add('active');
+        btn2.classList.remove('active');
+        label.innerText = "Primary Feed";
+        loading.classList.remove('active');
+    } else {
+        cam1.classList.remove('active');
+        cam2.classList.add('active');
+        btn1.classList.remove('active');
+        btn2.classList.add('active');
+        label.innerText = "Secondary Feed";
+        
+        // Show loading if not yet ready
+        if (!cam2.complete || cam2.naturalWidth === 0) {
+            loading.innerHTML = 'Connecting<span class="dots"></span>';
+            loading.classList.add('active');
+        }
+
+        // Connect if not already connected
+        if (!cam2.src || cam2.src.includes(window.location.host)) {
+            cam2.src = "http://" + SECONDARY_CAM_IP + "/stream";
+        }
+    }
+}
+
+// Load secondary stream in background on startup
+window.onload = () => {
+    const cam2 = document.getElementById('stream-secondary');
+    cam2.src = "http://" + SECONDARY_CAM_IP + "/stream";
+};
+
 function updateStatus() {
     fetch('/status')
     .then(response => response.json())
@@ -181,6 +320,7 @@ function updateStatus() {
             document.getElementById('gps-status').innerHTML ='<span class="status-dot status-locked"></span>Locked';
             document.getElementById('coords').innerText = data.lat.toFixed(6) + ', ' + data.lon.toFixed(6);
             document.getElementById('alt').innerText = data.alt.toFixed(2) + ' m';
+            document.getElementById('sats').innerText = data.sats;
             const h = String(data.h).padStart(2,'0');
             const m = String(data.m).padStart(2,'0');
             const s = String(data.s).padStart(2,'0');
@@ -192,6 +332,7 @@ function updateStatus() {
             document.getElementById('gps-status').innerHTML ='<span class="status-dot status-searching"></span>Finding<span class="dots"></span>';
             document.getElementById('coords').innerText ='WAITING FOR LOCK...';
             document.getElementById('gps-time').innerText ='00:00:00';
+            document.getElementById('sats').innerText = data.sats || 0;
         }
     })
 .catch(err => console.error('Fetch error:', err));
@@ -252,11 +393,11 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
 // handler for the gnss
 static esp_err_t status_handler(httpd_req_t *req) {
-    char json_response[160];
+    char json_response[180];
     if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
         snprintf(json_response, sizeof(json_response), 
-                 "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", 
-                 GPS.lat, GPS.lon, GPS.alt, GPS.hour, GPS.minute, GPS.second, GPS.val ? "true" : "false");
+                 "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", 
+                 GPS.lat, GPS.lon, GPS.alt, GPS.satellites, GPS.hour, GPS.minute, GPS.second, GPS.val ? "true" : "false");
         xSemaphoreGive(GPS.mutex);
     } else {
         strcpy(json_response, "{\"error\":\"mutex_timeout\"}");
