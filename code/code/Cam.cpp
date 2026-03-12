@@ -19,7 +19,7 @@
 #define VSYNC_GPIO_NUM 38
 #define HREF_GPIO_NUM  47
 #define PCLK_GPIO_NUM  13
-andle_t Server = NULL;
+httpd_handle_t Server = NULL;
 
 // HTML Website
 const char index_html[] PROGMEM = R"=====(
@@ -69,7 +69,7 @@ h1{
 }
 .cam-btn {
     flex: 1;
-    padding: 15px;
+    padding: 10px;
     background: #000;
     color: #666;
     border: none;
