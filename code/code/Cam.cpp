@@ -8,7 +8,6 @@
 #define XCLK_GPIO_NUM  10
 #define SIOD_GPIO_NUM  40
 #define SIOC_GPIO_NUM  39
-
 #define Y9_GPIO_NUM    48
 #define Y8_GPIO_NUM    11
 #define Y7_GPIO_NUM    12
@@ -20,11 +19,9 @@
 #define VSYNC_GPIO_NUM 38
 #define HREF_GPIO_NUM  47
 #define PCLK_GPIO_NUM  13
+andle_t Server = NULL;
 
-httpd_handle_t Server = NULL;
-
-
-// HTML Dashboard
+// HTML Website
 const char index_html[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
@@ -35,9 +32,9 @@ const char index_html[] PROGMEM = R"=====(
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 body{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #B7BEA0;
-    color: #000000;
+    font-family: "Times New Roman", Times, serif;
+    background: #A7EBF2; 
+    color: #000000; 
     margin: 0;
     display: flex;
     flex-direction: column;
@@ -68,15 +65,15 @@ h1{
     display: flex;
     width: 100%;
     gap: 2px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 .cam-btn {
     flex: 1;
-    padding: 10px;
+    padding: 15px;
     background: #000;
     color: #666;
     border: none;
-    font-size: 11px;
+    font-size: 16px;
     font-weight: bold;
     text-transform: uppercase;
     cursor: pointer;
@@ -86,14 +83,13 @@ h1{
 .cam-btn.active {
     background: #222;
     color: #fff;
-    border-bottom: 2px solid #4caf50;
+    border-bottom: 2px solid #079AF0;
 }
 .stream-box {
     background: #000;
-    border-radius: 0 0 12px 12px;
+    border-radius: 0 0 8px 8px;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    border: 1px solid #222;
+    border: none;
     position: relative;
     width: 100%;
 }
@@ -152,6 +148,12 @@ h1{
     gap: 12px;
     margin-top: 20px;
 }
+
+/* NEW: Makes the first box (GNSS Status) full width */
+.data-card:first-child {
+    grid-column: span 2;
+}
+
 .data-card {
     background: #000000;
     padding: 15px;
@@ -183,23 +185,20 @@ h1{
     margin-right: 8px;
 }
 .status-locked {
-    background: #4caf50;
+    background: #3E7D3D;
     box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
 }
 .status-searching {
-    background: #f44336;
-    animation: blink 1s infinite;
-    box-shadow: 0 0 10px rgba(244, 67, 54, 0.4);
-}
-@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-.dots::after {
-    content: '.';
-    animation: dots 1.5s infinite;
+    background: #ff9800;
 }
 @keyframes dots {
     0%,32% {content: '.';}
     33%,65% {content: '..';}
     66%,100% {content: '...';}
+}
+.dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
 }
 </style>
 </head>
@@ -211,8 +210,8 @@ h1{
 </div>
 
 <div class="cam-tabs">
-    <button id="btn-cam1" class="cam-btn active" onclick="switchCam(1)">Cam 1 (Front)</button>
-    <button id="btn-cam2" class="cam-btn" onclick="switchCam(2)">Cam 2 (Rear)</button>
+    <button id="btn-cam1" class="cam-btn active" onclick="switchCam(1)">Cam 1</button>
+    <button id="btn-cam2" class="cam-btn" onclick="switchCam(2)">Cam 2</button>
 </div>
 
 <div class="stream-box">
@@ -224,32 +223,39 @@ h1{
 
 <!-- MAP -->
 <div id="map"></div>
+
 <div class="data-grid">
-<div class="data-card">
-<div class="label">GNSS Status</div>
-<div class="value" id="gps-status">
-<span class="status-dot status-searching"></span>
-Finding<span class="dots"></span>
+    <!-- Row 1: Long Box -->
+    <div class="data-card">
+        <div class="label">GNSS Status</div>
+        <div class="value" id="gps-status">
+            <span class="status-dot status-searching"></span>Finding<span class="dots"></span>
+        </div>
+    </div>
+
+    <!-- Row 2 & 3: 2x2 Grid -->
+    <div class="data-card">
+        <div class="label">GPS Time (UTC)</div>
+        <div id="gps-time" class="value">00:00:00</div>
+    </div>
+    <div class="data-card">
+        <div class="label">Altitude</div>
+        <div id="alt" class="value">0.00 m</div>
+    </div>
+    <div class="data-card">
+        <div class="label">Satellites</div>
+        <div id="sats" class="value">0</div>
+    </div>
+    <div class="data-card">
+        <div class="label">Coordinates</div>
+        <div class="value">
+            <div id="lat-val">0.000000 N</div>
+            <div id="lon-val">0.000000 W</div>
+        </div>
+    </div>
 </div>
 </div>
-<div class="data-card">
-<div class="label">GPS Time (UTC)</div>
-<div class="value" id="gps-time">00:00:00</div>
-</div>
-<div class="data-card">
-<div class="label">Altitude</div>
-<div class="value" id="alt">0.00 m</div>
-</div>
-<div class="data-card">
-<div class="label">Satellites</div>
-<div class="value" id="sats">0</div>
-</div>
-<div class="data-card">
-<div class="label">Coordinates</div>
-<div class="value" id="coords">0.000000, 0.000000</div>
-</div>
-</div>
-</div>
+
 <script>
 var map = L.map('map').setView([0,0], 18);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -257,9 +263,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 var marker = L.marker([0,0]).addTo(map);
 
-// --- CONFIGURATION ---
-// Change this to your secondary camera's IP address
-const SECONDARY_CAM_IP = "http://172.20.10.5"; 
+const SECONDARY_CAM_IP = "172.20.10.5"; 
 
 function hideLoading() {
     document.getElementById('cam-loading').classList.remove('active');
@@ -289,28 +293,20 @@ function switchCam(id) {
     } else {
         cam1.classList.remove('active');
         cam2.classList.add('active');
-        btn1.classList.remove('active');
+        btn1.classList.add('active');
         btn2.classList.add('active');
         label.innerText = "Secondary Feed";
         
-        // Show loading if not yet ready
         if (!cam2.complete || cam2.naturalWidth === 0) {
             loading.innerHTML = 'Connecting<span class="dots"></span>';
             loading.classList.add('active');
         }
 
-        // Connect if not already connected
         if (!cam2.src || cam2.src.includes(window.location.host)) {
             cam2.src = "http://" + SECONDARY_CAM_IP + "/stream";
         }
     }
 }
-
-// Load secondary stream in background on startup
-window.onload = () => {
-    const cam2 = document.getElementById('stream-secondary');
-    cam2.src = "http://" + SECONDARY_CAM_IP + "/stream";
-};
 
 function updateStatus() {
     fetch('/status')
@@ -318,7 +314,8 @@ function updateStatus() {
     .then(data => {
         if (data.valid) {
             document.getElementById('gps-status').innerHTML ='<span class="status-dot status-locked"></span>Locked';
-            document.getElementById('coords').innerText = data.lat.toFixed(6) + ', ' + data.lon.toFixed(6);
+            document.getElementById('lat-val').innerText = data.lat.toFixed(6) + ' N';
+            document.getElementById('lon-val').innerText = data.lon.toFixed(6) + ' W';
             document.getElementById('alt').innerText = data.alt.toFixed(2) + ' m';
             document.getElementById('sats').innerText = data.sats;
             const h = String(data.h).padStart(2,'0');
@@ -330,12 +327,13 @@ function updateStatus() {
         }
         else {
             document.getElementById('gps-status').innerHTML ='<span class="status-dot status-searching"></span>Finding<span class="dots"></span>';
-            document.getElementById('coords').innerText ='WAITING FOR LOCK...';
+            document.getElementById('lat-val').innerText = '0.000000 N';
+            document.getElementById('lon-val').innerText = '0.000000 W';
             document.getElementById('gps-time').innerText ='00:00:00';
             document.getElementById('sats').innerText = data.sats || 0;
         }
     })
-.catch(err => console.error('Fetch error:', err));
+    .catch(err => console.error('Fetch error:', err));
 }
 setInterval(updateStatus, 1000);
 </script>

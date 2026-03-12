@@ -127,7 +127,6 @@ void GnssTask(void *param)
           minute = (timeStr[2]-'0')*10 + (timeStr[3]-'0');
           second = (timeStr[4]-'0')*10 + (timeStr[5]-'0');
         }
-
         if (xSemaphoreTake(GPS.mutex, portMAX_DELAY))
         {
           GPS.lat = latitude;
