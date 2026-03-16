@@ -1,3 +1,6 @@
+//Jacob Holwill 10859926
+//
+
 #include <WiFi.h>
 #include "Gps.hpp"
 #include "Cam.hpp"
@@ -16,7 +19,7 @@ void setup() {
   Serial.println("GNSS Initialized");
   delay(2000); // Wait 2000 ms
 
-  Cam_init();
+  Cam1_init();
   Serial.println("CAM Initialized");
   delay(2000);
 
@@ -37,7 +40,7 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
 
-  Server_init();
+  Cam1_Server_Init();
 
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());

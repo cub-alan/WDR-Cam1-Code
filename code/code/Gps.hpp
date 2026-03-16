@@ -1,3 +1,7 @@
+//Jacob Holwill 10859926
+//
+
+// ensure the .hpp file doesnt get defined more then once
 #ifndef GPS_HPP
 #define GPS_HPP
 

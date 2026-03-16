@@ -1,3 +1,6 @@
+//Jacob Holwill 10859926
+//
+
 #include "Cam.hpp"
 #include "Arduino.h"
 #include "Gps.hpp"
@@ -108,7 +111,7 @@ static esp_err_t Cam1_Status_Update(httpd_req_t *Status_Request) { // a static f
     return httpd_resp_send(Status_Request, GNSS_Write, strlen(GNSS_Write)); // sends the json back to the client
 }
 
-void Cam_init() {
+void Cam1_init() {
     //Pin configuration were taken from the camera webserver example code and adjusted where nessesary
     camera_config_t config;
     config.ledc_channel = LEDC_CHANNEL_0;
