@@ -7,15 +7,15 @@
 
 struct GnssData {
 
-  double lat = 0.0;
-  double lon = 0.0;
+  float lat = 0.0;
+  float lon = 0.0;
   float alt = 0.0;
 
   int satellites = 0;
 
   int hour = 0;
-  int minute = 0;
-  int second = 0;
+  int min = 0;
+  int sec = 0;
 
   bool val = false;
   bool dataReceived = false;

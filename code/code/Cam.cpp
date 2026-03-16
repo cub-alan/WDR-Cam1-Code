@@ -2,7 +2,7 @@
 #include "Arduino.h"
 #include "Gps.hpp"
 
-// XIAO ESP32-S3 Sense Pin Definitions retrieved from camera webserver example code
+//Pin Definitions were taken from the XIAO ESP32-S3 Sense section for the camera webserver example code
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM  10
@@ -21,471 +21,152 @@
 #define PCLK_GPIO_NUM  13
 httpd_handle_t Server = NULL;
 
-// HTML Website
-const char index_html[] PROGMEM = R"=====(
-<!DOCTYPE html>
-<html>
-<head> <title>Weed Detection Robot - Live View</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Leaflet Map Library -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-body{
-    font-family: "Times New Roman", Times, serif;
-    background: #A7EBF2; 
-    color: #000000; 
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-.container{
-    width: 100%;
-    max-width: 640px;
-    padding: 20px;
-    box-sizing: border-box;
-}
-.header{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-}
-h1{
-    font-size: 24px;
-    margin: 0;
-    color: #000000;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-.cam-tabs {
-    display: flex;
-    width: 100%;
-    gap: 2px;
-    margin-bottom: 2px;
-}
-.cam-btn {
-    flex: 1;
-    padding: 10px;
-    background: #000;
-    color: #666;
-    border: none;
-    font-size: 16px;
-    font-weight: bold;
-    text-transform: uppercase;
-    cursor: pointer;
-    border-radius: 8px 8px 0 0;
-    transition: all 0.2s;
-}
-.cam-btn.active {
-    background: #222;
-    color: #fff;
-    border-bottom: 2px solid #079AF0;
-}
-.stream-box {
-    background: #000;
-    border-radius: 0 0 8px 8px;
-    overflow: hidden;
-    border: none;
-    position: relative;
-    width: 100%;
-}
-.stream-box img {
-    width: 100%;
-    display: none;
-    min-height: 240px;
-}
-.stream-box img.active {
-    display: block;
-}
-.loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 14px;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    z-index: 5;
-}
-.loading-overlay.active {
-    display: flex;
-}
-.stream-label {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(0,0,0,0.6);
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    pointer-events: none;
-}
-#map {
-    width: 100%;
-    height: 300px;
-    margin-top: 20px;
-    border-radius: 12px;
-    border: 1px solid #222;
-}
-.data-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-top: 20px;
-}
+// create a funtion to handle the stream and return any esp errors and points to the http request object
+static esp_err_t Cam1_Stream_Update(httpd_req_t *Server_Request) { 
+    camera_fb_t * Cam1_Frame_Buffer = NULL; // creates a pointer to the frame buffer for the camera 
+    esp_err_t Error_Check = ESP_OK; // used to shows the result of future operations
+    size_t JPG_Buffer_Size = 0; // creates a buffer to store a jpeg image in
+    uint8_t * JPG_Buffer = NULL; // creates a pointer to the JPEG image info
+    char Parts_Buffer[64]; // temporary buffer to store the headers for the server
 
-/* NEW: Makes the first box (GNSS Status) full width */
-.data-card:first-child {
-    grid-column: span 2;
-}
+    // tells the browser its a jpeg stream with boundrys (vid) between each image
+    Error_Check = httpd_resp_set_type(Server_Request, "multipart/x-mixed-replace;boundary=vid"); 
 
-.data-card {
-    background: #000000;
-    padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #222;
-    transition: border-color 0.3s;
-}
-.data-card:hover {
-    border-color: #444;
-}
-.label {
-    font-size: 10px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-}
-.value {
-    font-size: 16px;
-    font-weight: 600;
-    font-family: "JetBrains Mono", monospace;
-    color: #fff;
-}
-.status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-.status-locked {
-    background: #3E7D3D;
-    box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
-}
-.status-searching {
-    background: #ff9800;
-}
-@keyframes dots {
-    0%,32% {content: '.';}
-    33%,65% {content: '..';}
-    66%,100% {content: '...';}
-}
-.dots::after {
-    content: '';
-    animation: dots 1.5s infinite;
-}
-</style>
-</head>
-<body>
-<div class="container">
-<div class="header">
-<h1>Weed Detection Robot</h1>
-<div id="clock" style="font-size:12px;color:#666;">ONLINE</div>
-</div>
-
-<div class="cam-tabs">
-    <button id="btn-cam1" class="cam-btn active" onclick="switchCam(1)">Cam 1</button>
-    <button id="btn-cam2" class="cam-btn" onclick="switchCam(2)">Cam 2</button>
-</div>
-
-<div class="stream-box">
-    <div id="cam-loading" class="loading-overlay">Connecting<span class="dots"></span></div>
-    <img src="/stream" id="stream-primary" class="active">
-    <img src="" id="stream-secondary" alt="Secondary Feed Offline" onload="hideLoading()" onerror="showError()">
-    <div id="active-label" class="stream-label">Primary Feed</div>
-</div>
-
-<!-- MAP -->
-<div id="map"></div>
-
-<div class="data-grid">
-    <!-- Row 1: Long Box -->
-    <div class="data-card">
-        <div class="label">GNSS Status</div>
-        <div class="value" id="gps-status">
-            <span class="status-dot status-searching"></span>Finding<span class="dots"></span>
-        </div>
-    </div>
-
-    <!-- Row 2 & 3: 2x2 Grid -->
-    <div class="data-card">
-        <div class="label">GPS Time (UTC)</div>
-        <div id="gps-time" class="value">00:00:00</div>
-    </div>
-    <div class="data-card">
-        <div class="label">Altitude</div>
-        <div id="alt" class="value">0.00 m</div>
-    </div>
-    <div class="data-card">
-        <div class="label">Satellites</div>
-        <div id="sats" class="value">0</div>
-    </div>
-    <div class="data-card">
-        <div class="label">Coordinates</div>
-        <div class="value">
-            <div id="lat-val">0.000000 N</div>
-            <div id="lon-val">0.000000 W</div>
-        </div>
-    </div>
-</div>
-</div>
-
-<script>
-var map = L.map('map').setView([0,0], 18);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-}).addTo(map);
-var marker = L.marker([0,0]).addTo(map);
-
-const SECONDARY_CAM_IP = "172.20.10.5"; 
-
-function hideLoading() {
-    document.getElementById('cam-loading').classList.remove('active');
-}
-
-function showError() {
-    const loading = document.getElementById('cam-loading');
-    loading.innerHTML = 'Connection Failed';
-    loading.classList.add('active');
-}
-
-function switchCam(id) {
-    const cam1 = document.getElementById('stream-primary');
-    const cam2 = document.getElementById('stream-secondary');
-    const btn1 = document.getElementById('btn-cam1');
-    const btn2 = document.getElementById('btn-cam2');
-    const label = document.getElementById('active-label');
-    const loading = document.getElementById('cam-loading');
-
-    if (id === 1) {
-        cam1.classList.add('active');
-        cam2.classList.remove('active');
-        btn1.classList.add('active');
-        btn2.classList.remove('active');
-        label.innerText = "Primary Feed";
-        loading.classList.remove('active');
-    } else {
-        cam1.classList.remove('active');
-        cam2.classList.add('active');
-        btn1.classList.add('active');
-        btn2.classList.add('active');
-        label.innerText = "Secondary Feed";
-        
-        if (!cam2.complete || cam2.naturalWidth === 0) {
-            loading.innerHTML = 'Connecting<span class="dots"></span>';
-            loading.classList.add('active');
-        }
-
-        if (!cam2.src || cam2.src.includes(window.location.host)) {
-            cam2.src = "http://" + SECONDARY_CAM_IP + "/stream";
-        }
-    }
-}
-
-function updateStatus() {
-    fetch('/status')
-    .then(response => response.json())
-    .then(data => {
-        if (data.valid) {
-            document.getElementById('gps-status').innerHTML ='<span class="status-dot status-locked"></span>Locked';
-            document.getElementById('lat-val').innerText = data.lat.toFixed(6) + ' N';
-            document.getElementById('lon-val').innerText = data.lon.toFixed(6) + ' W';
-            document.getElementById('alt').innerText = data.alt.toFixed(2) + ' m';
-            document.getElementById('sats').innerText = data.sats;
-            const h = String(data.h).padStart(2,'0');
-            const m = String(data.m).padStart(2,'0');
-            const s = String(data.s).padStart(2,'0');
-            document.getElementById('gps-time').innerText = h + ':' + m + ':' + s;
-            marker.setLatLng([data.lat, data.lon]);
-            map.panTo([data.lat, data.lon]);
-        }
-        else {
-            document.getElementById('gps-status').innerHTML ='<span class="status-dot status-searching"></span>Finding<span class="dots"></span>';
-            document.getElementById('lat-val').innerText = '0.000000 N';
-            document.getElementById('lon-val').innerText = '0.000000 W';
-            document.getElementById('gps-time').innerText ='00:00:00';
-            document.getElementById('sats').innerText = data.sats || 0;
-        }
-    })
-    .catch(err => console.error('Fetch error:', err));
-}
-setInterval(updateStatus, 1000);
-</script>
-</body>
-</html>)=====";
-
-//handler for the html 
-static esp_err_t index_handler(httpd_req_t *req) {
-    httpd_resp_set_type(req, "text/html");
-    return httpd_resp_send(req, index_html, strlen(index_html));
-}
-
-// This handler serves the MJPEG stream
-static esp_err_t stream_handler(httpd_req_t *req) {
-    camera_fb_t * fb = NULL;
-    esp_err_t res = ESP_OK;
-    size_t _jpg_buf_len = 0;
-    uint8_t * _jpg_buf = NULL;
-    char * part_buf[64];
-
-    res = httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=frame");
-    if(res != ESP_OK) return res;
+    if(Error_Check != ESP_OK) return Error_Check; // check the error check fails then exit but if not then continue
 
     while(true) {
-        fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("Camera capture failed");
-            res = ESP_FAIL;
-        } else {
-            _jpg_buf_len = fb->len;
-            _jpg_buf = fb->buf;
+        Cam1_Frame_Buffer = esp_camera_fb_get(); // captures an image containing the JPG_Buffer and JPG_Buffer_Size
+        if (!Cam1_Frame_Buffer) { // if it fails to capture
+            Serial.println("Camera capture failed"); // print debug line to the terminal
+            Error_Check = ESP_FAIL; // set the error check to a fail
+        } else { // if the camera successfuly captures
+            JPG_Buffer_Size = Cam1_Frame_Buffer->len; // store the Jpeg size  
+            JPG_Buffer = Cam1_Frame_Buffer->buf;// store the Jpeg image info
         }
 
-        if(res == ESP_OK){
-            size_t hlen = snprintf((char *)part_buf, 64, "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", _jpg_buf_len);
-            res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
-        }
-        
-        if(res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
-        
-        if(res == ESP_OK) res = httpd_resp_send_chunk(req, "\r\n--frame\r\n", 15);
+        if(Error_Check == ESP_OK){ // check the error checker to see if the image had captured or not
 
-        if(fb) {
-            esp_camera_fb_return(fb);
-            fb = NULL;
+            // create a header for the JPEG info
+            size_t JPG_Info = snprintf((char *)Parts_Buffer, 64, "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", JPG_Buffer_Size); 
+            Error_Check = httpd_resp_send_chunk(Server_Request, (const char *)Parts_Buffer, JPG_Info); // sends the header chunk to the browser
         }
         
-        if(res != ESP_OK) break;
+        // 
+        if(Error_Check == ESP_OK){ // chek if the error check is still ok
+            Error_Check = httpd_resp_send_chunk(Server_Request, (const char *)JPG_Buffer, JPG_Buffer_Size); // send the JPEG to the browser
+        } 
         
-        // Small delay to prevent the camera from saturating the CPU/Power
-        vTaskDelay(pdMS_TO_TICKS(1)); 
+        if(Error_Check == ESP_OK) { // chek if the error check is still ok
+            Error_Check = httpd_resp_send_chunk(Server_Request, "\r\n--vid\r\n", 15); // send a image seperator to the browser
+        }
+
+        if(Cam1_Frame_Buffer) {
+            esp_camera_fb_return(Cam1_Frame_Buffer); // returns the frame to the camera 
+            Cam1_Frame_Buffer = NULL; // resets the buffer
+        }
+        
+        if(Error_Check != ESP_OK){ // if the error check retreives an error
+            break; // break from the loop
+        } 
+        vTaskDelay(pdMS_TO_TICKS(50)); // delay to prevent power spikes and instability and also create roughly 20fps on the camera
     }
-    return res;
+    return Error_Check; // returns the status of the error check
 }
 
 // handler for the gnss
-static esp_err_t status_handler(httpd_req_t *req) {
-    char json_response[180];
-    if (xSemaphoreTake(GPS.mutex, (TickType_t)10) == pdTRUE) {
-        snprintf(json_response, sizeof(json_response), 
-                 "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", 
-                 GPS.lat, GPS.lon, GPS.alt, GPS.satellites, GPS.hour, GPS.minute, GPS.second, GPS.val ? "true" : "false");
-        xSemaphoreGive(GPS.mutex);
-    } else {
-        strcpy(json_response, "{\"error\":\"mutex_timeout\"}");
+static esp_err_t Cam1_Status_Update(httpd_req_t *Status_Request) { // a static function that returns error for the status request
+    char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in
+    if (xSemaphoreTake(GPS.mutex, 10) == pdTRUE) { // attempt to lock the mutex to be able to acess it and protect the GNSS data 
+
+        // get the values for the gps
+        float lat = GPS.lat ;
+        float lon = GPS.lon ;
+        float alt = GPS.alt ;
+        int satellites = GPS.satellites ;
+        int hour = GPS.hour ;
+        int min = GPS.min ;
+        int sec = GPS.sec ;
+        const char* GNSS_Check; // ceate a check to see if the gnss is receiving anything
+
+        if (GPS.val){ // if receiving data
+            GNSS_Check = "true"; // check is true
+        }
+        else{ // if not receiving data
+            GNSS_Check = "false"; // check is false
+        }
+
+        snprintf(GNSS_Write, sizeof(GNSS_Write),  // print the GNSS_Write buffer witht the following text while keeping the buffer size
+        "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", // write this to the buffer
+        lat, lon, alt, satellites, hour, min, sec, GNSS_Check); // write the data to its corrosponding % in the previous text
+
+        xSemaphoreGive(GPS.mutex); // unlock the mutex
+    } 
+    else { // if mutex is unable to be locked/read
+        strcpy(GNSS_Write, "{\"error\":\"GPS mutex is busy\"}"); // if the mutex is being used create this error message in the buffer
     }
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, json_response, strlen(json_response));
+    httpd_resp_set_type(Status_Request, "application/json"); // tells the browser the respons of the json
+    return httpd_resp_send(Status_Request, GNSS_Write, strlen(GNSS_Write)); // sends the json back to the client
 }
 
 void Cam_init() {
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG;  // for streaming
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
-  config.fb_count = 1;
+    //Pin configuration were taken from the camera webserver example code and adjusted where nessesary
+    camera_config_t config;
+    config.ledc_channel = LEDC_CHANNEL_0;
+    config.ledc_timer = LEDC_TIMER_0;
+    config.pin_d0 = Y2_GPIO_NUM;
+    config.pin_d1 = Y3_GPIO_NUM;
+    config.pin_d2 = Y4_GPIO_NUM;
+    config.pin_d3 = Y5_GPIO_NUM;
+    config.pin_d4 = Y6_GPIO_NUM;
+    config.pin_d5 = Y7_GPIO_NUM;
+    config.pin_d6 = Y8_GPIO_NUM;
+    config.pin_d7 = Y9_GPIO_NUM;
+    config.pin_xclk = XCLK_GPIO_NUM;
+    config.pin_pclk = PCLK_GPIO_NUM;
+    config.pin_vsync = VSYNC_GPIO_NUM;
+    config.pin_href = HREF_GPIO_NUM;
+    config.pin_sccb_sda = SIOD_GPIO_NUM;
+    config.pin_sccb_scl = SIOC_GPIO_NUM;
+    config.pin_pwdn = PWDN_GPIO_NUM;
+    config.pin_reset = RESET_GPIO_NUM;
+    config.xclk_freq_hz = 20000000;
+    config.frame_size = FRAMESIZE_UXGA;
+    config.pixel_format = PIXFORMAT_JPEG;  // for streaming
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
 
-    // Initialize the camera
-    esp_err_t error = esp_camera_init(&config); 
-    if (error != ESP_OK) {
-        Serial.printf("Cam_init failed: 0x%x\n", error);
-        return;
-    }
+    esp_camera_init(&config);
 
-    // Manual sensor adjustments for better stability
-    sensor_t * s = esp_camera_sensor_get();
-    if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);        // flip it vertically back
-    s->set_brightness(s, -3);   // reduce the brightness 
-    s->set_saturation(s, -1);  // lower the saturation
+    // the following is manual sensor adjustments for better stability (taken from the example code)
+    sensor_t * sens = esp_camera_sensor_get(); // gets the camera type and sets it to pointer sens
+
+    if (sens->id.PID == OV3660_PID) { // if it picks up the correct camera type do the following
+        sens->set_vflip(sens, 1); // flip the camera vertically to flip it back to normal 
+        sens->set_brightness(sens, -3);// lower the brightness to improve video quality
+        sens->set_saturation(sens, -1);// lower the saturation to improve video quality
     }
-    if (config.pixel_format == PIXFORMAT_JPEG) {
-    s->set_framesize(s, FRAMESIZE_QVGA);
+    if (config.pixel_format == PIXFORMAT_JPEG) { // if the picture is in jpeg format 
+        sens->set_framesize(sens, FRAMESIZE_QVGA); // change the camera quality to QVGA
     }
 }
 
-void Server_init() {
-    httpd_config_t server_config = HTTPD_DEFAULT_CONFIG();
-    server_config.server_port = 80;
-    server_config.ctrl_port = 32768; // Avoid conflict with other services
+void Cam1_Server_Init() {
+    httpd_config_t Cam1_Server_Config = HTTPD_DEFAULT_CONFIG(); // create a variable to save all server info/ settings
+    Cam1_Server_Config.server_port = 80; // set the webservers pot to number 80 which is standard
+    Cam1_Server_Config.ctrl_port = 30000; // set the controll port to avoid conflict with any other ports
 
-    // Define the URI for the index
-    httpd_uri_t index_uri = {
-        .uri      = "/",
-        .method   = HTTP_GET,
-        .handler  = index_handler,
-        .user_ctx = NULL
-    };
-    // Define the URI for the stream
-    httpd_uri_t stream_uri = {
-        .uri      = "/stream",
-        .method   = HTTP_GET,
-        .handler  = stream_handler,
-        .user_ctx = NULL
-    };
-    // Define the URI for the status
-    httpd_uri_t status_uri = {
-        .uri      = "/status",
-        .method   = HTTP_GET,
-        .handler  = status_handler,
-        .user_ctx = NULL
-    };
+    // create a variable and store the cameras URL in it for streaming and to asses the cams veiw
+    httpd_uri_t Cam1_Stream_URL = {.uri = "/stream", .method = HTTP_GET, .handler = Cam1_Stream_Update, .user_ctx = NULL}; 
 
+    // create a variable and store the debugging/status URL in it to be able to acess relevent info
+    httpd_uri_t Cam1_Status_URL = {.uri = "/status", .method = HTTP_GET, .handler = Cam1_Status_Update, .user_ctx = NULL};
     
     // Start the server
-    if (httpd_start(&Server, &server_config) == ESP_OK) {
-        httpd_register_uri_handler(Server, &index_uri);
-        httpd_register_uri_handler(Server, &stream_uri);
-        httpd_register_uri_handler(Server, &status_uri);
-        Serial.println("Camera server started on port 80");
-    } else {
-        Serial.println("Failed to start camera server");
+    if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
+        httpd_register_uri_handler(Server, &Cam1_Stream_URL); // create the cameras page on the server 
+        httpd_register_uri_handler(Server, &Cam1_Status_URL); // create the status page on the server
+        Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
     }
 }

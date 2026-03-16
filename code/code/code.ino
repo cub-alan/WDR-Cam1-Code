@@ -3,8 +3,8 @@
 #include "Cam.hpp"
 
 // set the ssid and password to create the web server on (using my phone hotspot)
-const char* ssid = "iPhone"; 
-const char* password = "12345678";
+const char* ssid = "Emily’s iPhone"; 
+const char* password = "spingle1378";
 
 void setup() {
 
