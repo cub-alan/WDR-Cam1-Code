@@ -35,24 +35,25 @@ void loop()
   {
     timer = millis();
 
-    if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20)))
-    {
-      bool fix_check = GPS.val;
-      bool data_check = GPS.dataReceived;
+    if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20))){
+      
+      bool fix_check = GPS.Fix_Val;
+      bool data_check = GPS.data_Received;
 
       double lat = GPS.lat;
       double lon = GPS.lon;
       int sats = GPS.satellites;
 
-      GPS.dataReceived = false;
-
+      if (data_check){
+        GPS.data_Received = false;
+      }
       xSemaphoreGive(GPS.mutex);
 
       if (fix_check)
       {
         Serial.printf("| GPS FIX | LAT: %.6f LON: %.6f SATS: %d\n", lat, lon, sats);
       }
-      else if (data_check)
+      else if (GPS.data_Received ||data_check)
       {
         Serial.println("| GPS COMMUNICATING | Waiting for satellite fix...");
       }

@@ -1,4 +1,15 @@
+//Jacob Holwill 10859926
+//
+
+#include "Server.hpp"
+
+const char* ssid = "iPhone"; 
+const char* password = "12345678";
+
+extern httpd_handle_t Server;
+
 void Cam1_Server_Init() {
+
   httpd_config_t Cam1_Server_Config = HTTPD_DEFAULT_CONFIG(); // create a variable to save all server info/ settings
   Cam1_Server_Config.server_port = 80; // set the webservers pot to number 80 which is standard
   Cam1_Server_Config.ctrl_port = 30000; // set the controll port to avoid conflict with any other ports
@@ -16,6 +27,7 @@ void Cam1_Server_Init() {
     Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
   }
 }
+
 void WIFI_Connect(){
   
   Serial.println("");

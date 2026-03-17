@@ -6,10 +6,14 @@
 #define SERVER_HPP
 
 #include "esp_http_server.h"
+#include "Cam.hpp"
+#include "Gps.hpp"
+#include <WiFi.h>
+#include "Arduino.h"
 
 // set the ssid and password to create the web server on (using my phone hotspot)
-const char* ssid = "iPhone"; 
-const char* password = "12345678";
+extern const char* ssid; 
+extern const char* password;
 
 //initialise the Server.cpp functions
 void Cam1_Server_Init();

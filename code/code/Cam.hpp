@@ -13,6 +13,6 @@
 
 //initialise the Cam.cpp functions
 void Cam1_init();
-void Cam1_Server_Init();
+esp_err_t Cam1_Stream_Update(httpd_req_t *req);
 
 #endif

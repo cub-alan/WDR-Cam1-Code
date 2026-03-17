@@ -8,6 +8,10 @@
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_http_server.h"
+#include <HardwareSerial.h>
+#include <string.h>
+#include <stdlib.h>
 
 struct GnssData {
 
@@ -21,15 +25,16 @@ struct GnssData {
   int min = 0;
   int sec = 0;
 
-  bool val = false;
-  bool dataReceived = false;
+  bool Fix_Val = false;
+  bool data_Received = false;
 
-  SemaphoreHandle_t mutex;
+  SemaphoreHandle_t mutex = NULL;
 };
 
 extern GnssData GPS;
 
 void Gnss_init();
 void GnssTask(void *param);
+esp_err_t GPS_Status_Update(httpd_req_t *Status_Request);
 
 #endif
