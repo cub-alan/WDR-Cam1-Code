@@ -1,19 +1,15 @@
 //Jacob Holwill 10859926
 //
 
-#include <WiFi.h>
-#include "Gps.hpp"
-#include "Cam.hpp"
-
-// set the ssid and password to create the web server on (using my phone hotspot)
-const char* ssid = "Emily’s iPhone"; 
-const char* password = "spingle1378";
+#include "MyLib.hpp"
 
 void setup() {
 
   Serial.begin(115200);
   Serial.setDebugOutput(true);
-  for(int i=0;i<40;i++) Serial.println(); // clear the terminal 
+  for(int i=0;i<40;i++){
+    Serial.println(); // clear the terminal 
+  } 
 
   Gnss_init();
   Serial.println("GNSS Initialized");
@@ -23,31 +19,13 @@ void setup() {
   Serial.println("CAM Initialized");
   delay(2000);
 
-  Serial.println("");
-  Serial.print("Connecting to WIFI");
-
-  WiFi.setHostname("xiao-sense");
-  WiFi.begin(ssid, password);
-  WiFi.setSleep(false);
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
-  WiFi.setAutoReconnect(true);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-
+  WIFI_Connect();
+  
   Cam1_Server_Init();
 
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
-
 }
-
 
 void loop()
 {

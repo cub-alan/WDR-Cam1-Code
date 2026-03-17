@@ -9,8 +9,8 @@
 HardwareSerial GNSS(1);
 GnssData GPS;
 
-#define GNSS_RX 44
-#define GNSS_TX 43
+#define GNSS_RX 43
+#define GNSS_TX 44
 #define GNSS_BAUD 9600
 
 bool Checksum(const char* sentence)
@@ -132,13 +132,13 @@ void GnssTask(void *param)
         }
         if (xSemaphoreTake(GPS.mutex, portMAX_DELAY))
         {
-          GPS.lat = latitude;
-          GPS.lon = longitude;
-          GPS.alt = altitude;
+          GPS.lat = lat;
+          GPS.lon = lon;
+          GPS.alt = alt;
           GPS.satellites = satellites;
           GPS.hour = hour;
-          GPS.minute = minute;
-          GPS.second = second;
+          GPS.minute = min;
+          GPS.second = sec;
           GPS.val = true;
           xSemaphoreGive(GPS.mutex);
         }
@@ -153,4 +153,29 @@ void GnssTask(void *param)
     }
     vTaskDelay(pdMS_TO_TICKS(10));
   }
+}
+static esp_err_t GPS_Status_Update(httpd_req_t *Status_Request) { // a static function that returns error for the status request
+    char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in
+    if (xSemaphoreTake(GPS.mutex, 10) == pdTRUE) { // attempt to lock the mutex to be able to acess it and protect the GNSS data 
+
+        const char* GNSS_Check; // ceate a check to see if the gnss is receiving anything
+
+        if (GPS.val){ // if receiving data
+            GNSS_Check = "true"; // check is true
+        }
+        else{ // if not receiving data
+            GNSS_Check = "false"; // check is false
+        }
+
+        snprintf(GNSS_Write, sizeof(GNSS_Write),  // print the GNSS_Write buffer witht the following text while keeping the buffer size
+        "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", // write this to the buffer
+        lat, lon, alt, satellites, hour, min, sec, GNSS_Check); // write the data to its corrosponding % in the previous text
+
+        xSemaphoreGive(GPS.mutex); // unlock the mutex
+    } 
+    else { // if mutex is unable to be locked/read
+        strcpy(GNSS_Write, "{\"error\":\"GPS mutex is busy\"}"); // if the mutex is being used create this error message in the buffer
+    }
+    httpd_resp_set_type(Status_Request, "application/json"); // tells the browser the respons of the json
+    return httpd_resp_send(Status_Request, GNSS_Write, strlen(GNSS_Write)); // sends the json back to the client
 }

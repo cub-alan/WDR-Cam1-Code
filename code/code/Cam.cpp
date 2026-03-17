@@ -1,9 +1,7 @@
 //Jacob Holwill 10859926
-//
+//The point of this file is to initialise and run the code to controll and stream the camera
 
-#include "Cam.hpp"
-#include "Arduino.h"
-#include "Gps.hpp"
+#include "Cam.hpp" // include the hpp file so it has acess to all nessesary librarys
 
 //Pin Definitions were taken from the XIAO ESP32-S3 Sense section for the camera webserver example code
 #define PWDN_GPIO_NUM  -1
@@ -25,7 +23,7 @@
 httpd_handle_t Server = NULL;
 
 // create a funtion to handle the stream and return any esp errors and points to the http request object
-static esp_err_t Cam1_Stream_Update(httpd_req_t *Server_Request) { 
+esp_err_t Cam1_Stream_Update(httpd_req_t *Server_Request) { 
     camera_fb_t * Cam1_Frame_Buffer = NULL; // creates a pointer to the frame buffer for the camera 
     esp_err_t Error_Check = ESP_OK; // used to shows the result of future operations
     size_t JPG_Buffer_Size = 0; // creates a buffer to store a jpeg image in
@@ -76,41 +74,6 @@ static esp_err_t Cam1_Stream_Update(httpd_req_t *Server_Request) {
     return Error_Check; // returns the status of the error check
 }
 
-// handler for the gnss
-static esp_err_t Cam1_Status_Update(httpd_req_t *Status_Request) { // a static function that returns error for the status request
-    char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in
-    if (xSemaphoreTake(GPS.mutex, 10) == pdTRUE) { // attempt to lock the mutex to be able to acess it and protect the GNSS data 
-
-        // get the values for the gps
-        float lat = GPS.lat ;
-        float lon = GPS.lon ;
-        float alt = GPS.alt ;
-        int satellites = GPS.satellites ;
-        int hour = GPS.hour ;
-        int min = GPS.min ;
-        int sec = GPS.sec ;
-        const char* GNSS_Check; // ceate a check to see if the gnss is receiving anything
-
-        if (GPS.val){ // if receiving data
-            GNSS_Check = "true"; // check is true
-        }
-        else{ // if not receiving data
-            GNSS_Check = "false"; // check is false
-        }
-
-        snprintf(GNSS_Write, sizeof(GNSS_Write),  // print the GNSS_Write buffer witht the following text while keeping the buffer size
-        "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", // write this to the buffer
-        lat, lon, alt, satellites, hour, min, sec, GNSS_Check); // write the data to its corrosponding % in the previous text
-
-        xSemaphoreGive(GPS.mutex); // unlock the mutex
-    } 
-    else { // if mutex is unable to be locked/read
-        strcpy(GNSS_Write, "{\"error\":\"GPS mutex is busy\"}"); // if the mutex is being used create this error message in the buffer
-    }
-    httpd_resp_set_type(Status_Request, "application/json"); // tells the browser the respons of the json
-    return httpd_resp_send(Status_Request, GNSS_Write, strlen(GNSS_Write)); // sends the json back to the client
-}
-
 void Cam1_init() {
     //Pin configuration were taken from the camera webserver example code and adjusted where nessesary
     camera_config_t config;
@@ -152,24 +115,5 @@ void Cam1_init() {
     }
     if (config.pixel_format == PIXFORMAT_JPEG) { // if the picture is in jpeg format 
         sens->set_framesize(sens, FRAMESIZE_QVGA); // change the camera quality to QVGA
-    }
-}
-
-void Cam1_Server_Init() {
-    httpd_config_t Cam1_Server_Config = HTTPD_DEFAULT_CONFIG(); // create a variable to save all server info/ settings
-    Cam1_Server_Config.server_port = 80; // set the webservers pot to number 80 which is standard
-    Cam1_Server_Config.ctrl_port = 30000; // set the controll port to avoid conflict with any other ports
-
-    // create a variable and store the cameras URL in it for streaming and to asses the cams veiw
-    httpd_uri_t Cam1_Stream_URL = {.uri = "/stream", .method = HTTP_GET, .handler = Cam1_Stream_Update, .user_ctx = NULL}; 
-
-    // create a variable and store the debugging/status URL in it to be able to acess relevent info
-    httpd_uri_t Cam1_Status_URL = {.uri = "/status", .method = HTTP_GET, .handler = Cam1_Status_Update, .user_ctx = NULL};
-    
-    // Start the server
-    if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
-        httpd_register_uri_handler(Server, &Cam1_Stream_URL); // create the cameras page on the server 
-        httpd_register_uri_handler(Server, &Cam1_Status_URL); // create the status page on the server
-        Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
     }
 }
