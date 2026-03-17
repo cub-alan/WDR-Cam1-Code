@@ -8,7 +8,7 @@ GnssData GPS;
 
 #define GNSS_RX 43
 #define GNSS_TX 44
-#define GNSS_BAUD 115200
+#define GNSS_BAUD 9600
 
 //========================================================================================================================================================
 
@@ -20,13 +20,11 @@ bool Checksum(const char* GNSS_Data_Line){
   uint8_t sum = 0;
   GNSS_Data_Line++;
 
-  while (*GNSS_Data_Line && *GNSS_Data_Line != '*')
-  {
+  while (*GNSS_Data_Line && *GNSS_Data_Line != '*'){
     sum ^= *GNSS_Data_Line++;
   }
 
-  if (*GNSS_Data_Line == '*')
-  {
+  if (*GNSS_Data_Line == '*'){
     int GNSS_get = strtol(GNSS_Data_Line + 1, NULL, 16);
     return sum == GNSS_get;
   }
@@ -160,9 +158,10 @@ void GnssTask(void *param){
         }
       }
       else{
-        if (idx < sizeof(line) - 1)
+        if (idx < sizeof(line) - 1){
           line[idx++] = c;
-        else
+        }
+        else{
           idx = 0;
           continue;
         }
@@ -177,8 +176,6 @@ void GnssTask(void *param){
 esp_err_t GPS_Status_Update(httpd_req_t *Status_Request) { // a static function that returns error for the status request
     char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in
     if (xSemaphoreTake(GPS.mutex, 10) == pdTRUE) { // attempt to lock the mutex to be able to acess it and protect the GNSS data 
-
-        const char* GNSS_Check; // ceate a check to see if the gnss is receiving anything
 
         snprintf(GNSS_Write, sizeof(GNSS_Write),  // print the GNSS_Write buffer witht the following text while keeping the buffer size
         "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", // write this to the buffer

@@ -5,13 +5,14 @@
 #ifndef SERVER_HPP 
 #define SERVER_HPP
 
+// include all nessesary librarys for the server to work
 #include "esp_http_server.h"
 #include "Cam.hpp"
 #include "Gps.hpp"
 #include <WiFi.h>
 #include "Arduino.h"
 
-// set the ssid and password to create the web server on (using my phone hotspot)
+// initialise the ssid and password to create the web server on
 extern const char* ssid; 
 extern const char* password;
 
