@@ -15,7 +15,7 @@ void Cam1_Server_Init() {
   Cam1_Server_Config.server_port = 80; // set the webservers pot to number 80 which is standard
   Cam1_Server_Config.ctrl_port = 30000; // set the controll port to avoid conflict with any other ports
 
-  static httpd_uri_t Base_URL = (.uri = "/", .method = HTTP_GET, .handler = Cam_Stream_Handler, .user_ctx = NULL);
+  static httpd_uri_t Base_URL = ( "/", HTTP_GET, Cam_Stream_Handler, NULL);
 
   // create a variable and store the cameras URL in it for streaming and to asses the cams veiw
   static httpd_uri_t Cam1_Stream_URL = {.uri = "/stream", .method = HTTP_GET, .handler = Cam1_Stream_Update, .user_ctx = NULL}; 
