@@ -7,8 +7,8 @@ HardwareSerial GNSS(1);
 GnssData GPS; // retreive the GnssData struct and give in namespace GPS
 
 //define nessesary pins and baud rate
-#define GNSS_RX 43
-#define GNSS_TX 44
+#define GNSS_RX 44
+#define GNSS_TX 43
 #define GNSS_BAUD 9600
 
 //========================================================================================================================================================
@@ -50,61 +50,75 @@ void Gnss_init(){
 //=====================================================================================================================================================
 
 void GnssTask(void *param){
-  char line[128];// creates a buffer to store the gnss info line in
-  int Current_Point = 0; // creates a variable to hold pointer posision 
+  char line[128];
+  int idx = 0;
+  unsigned long last_data_time = 0;
 
   while (true){
 
-    while (GNSS.available()){ // check if the gnss is readable
+    if (GNSS.available()){
+      if (millis() - last_data_time > 5000) {
+        Serial.println(">>> Serial data detected on GNSS pins! <<<");
+        last_data_time = millis();
+      }
+    }
 
-      char GNSS_char = GNSS.read(); // create a variable to read the current character in the gnss line
+    while (GNSS.available()){
 
-      if (GNSS_char == '\r') { // if its a command to move to the start of terminal
-        continue; // ignore it and move on
+      char c = GNSS.read();
+
+      if (c == '\r') {
+        continue;
       }
 
-      if (GNSS_char == '\n'){ // if the command is to create a new line
-        line[Current_Point] = '\0'; // add a null terminator to make the c string valid
-        Current_Point = 0; // reset the buffer 
+      if (c == '\n'){
+        line[idx] = '\0';
+        idx = 0;
 
-        if (strlen(line) < 10){ //if the length of teh string is less the 10 characters
-          continue; // ignore it and move on
+        if (strlen(line) < 10){
+          continue;
         }
 
-        if (!Checksum(line)){ // sends the line through the checksum function 
-          continue; // if checksum is false ignore the line and move on
+        if (!Checksum(line)){
+          continue;
         }
 
-        if (strncmp(line, "$GNGGA", 6) != 0 && strncmp(line, "$GPGGA", 6) != 0){ // checks for the lines with the info i want to receive
-          continue; // if it is a line with the needed info continue the function
+        if (strncmp(line, "$GNGGA", 6) != 0 && strncmp(line, "$GPGGA", 6) != 0){
+          continue;
         }
         
-        //create an array to store each bit of data that is seperated by commas
         char *fields[15];
         int field = 0;
-
-        char *Line_Split = strtok(line, ",");//splits the line by the commas
-
-        while (Line_Split && field < 15){ // while the are area of the split line left and the feild is less then 15
-          fields[field++] = Line_Split; // take the feild and position and put that section of the line split into the feilds
-          Line_Split = strtok(NULL, ","); // goes to the next section of the split line
-        }
-
-        if (field < 10) {// ensure there is the right amount of feilds
-          continue; // continue if there are less then 10 feilds
-        }
-
-        int quality = atoi(fields[6]); // set feild 6 to a quality check
-
-        if (quality == 0){ // if there is no gps signal quality
-          if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){ // if the mutex is accessable
-            GPS.Fix_Val = false;
-            xSemaphoreGive(GPS.mutex); // lock mutex
+        char *Pointer_GNSS = line;
+        while (Pointer_GNSS && field < 15) {
+          fields[field++] = Pointer_GNSS;
+          Pointer_GNSS = strchr(Pointer_GNSS, ',');
+          if (Pointer_GNSS) {
+            *Pointer_GNSS = '\0';
+            Pointer_GNSS++;
           }
-          continue; // continue the function
         }
 
-        //set the feilds to their own integers
+        if (field < 10) {
+          continue;
+        }
+
+        int quality = atoi(fields[6]);
+
+        // Set data_Received to true as soon as we get a valid GGA sentence, even if no fix yet
+        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){
+          GPS.data_Received = true;
+          xSemaphoreGive(GPS.mutex);
+        }
+
+        if (quality == 0){
+          if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){
+            GPS.Fix_Val = false;
+            xSemaphoreGive(GPS.mutex);
+          }
+          continue;
+        }
+
         const char* latStr = fields[2];
         const char* latDir = fields[3];
         const char* lonStr = fields[4];
@@ -158,13 +172,11 @@ void GnssTask(void *param){
           xSemaphoreGive(GPS.mutex);
         }
       }
-      else{
-        if (Current_Point < sizeof(line) - 1){
-          line[Current_Point++] = GNSS_char;
-        }
-        else{
-          Current_Point = 0;
-          continue;
+      else {
+        if (idx < sizeof(line) - 1) {
+          line[idx++] = c;
+        } else {
+          idx = 0;
         }
       }
     }
@@ -173,9 +185,11 @@ void GnssTask(void *param){
 }
 //===============================================================================================================================================================
 
-esp_err_t GPS_Status_Update(httpd_req_t *Status_Request) { // a static function that returns error for the status request
+esp_err_t GPS_Status_Update(httpd_req_t *Status_Request) { // a function that returns error for the status request
     char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in
     if (xSemaphoreTake(GPS.mutex, 10) == pdTRUE) { // attempt to lock the mutex to be able to acess it and protect the GNSS data 
+
+        const char* GNSS_Check = GPS.Fix_Val ? "true" : "false"; // ceate a check to see if the gnss is receiving anything
 
         snprintf(GNSS_Write, sizeof(GNSS_Write),  // print the GNSS_Write buffer witht the following text while keeping the buffer size
         "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d,\"valid\":%s}", // write this to the buffer

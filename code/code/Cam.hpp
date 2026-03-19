@@ -12,6 +12,8 @@
 #include "Arduino.h"
 
 //initialise the Cam.cpp functions
+extern bool camera_initialized;
+extern httpd_handle_t Server;
 void Cam1_init();
 esp_err_t Cam1_Stream_Update(httpd_req_t *req);
 

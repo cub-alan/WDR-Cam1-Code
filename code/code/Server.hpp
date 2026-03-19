@@ -17,6 +17,7 @@ extern const char* ssid;
 extern const char* password;
 
 //initialise the Server.cpp functions
+extern httpd_handle_t Server;
 void Cam1_Server_Init();
 void WIFI_Connect();
 

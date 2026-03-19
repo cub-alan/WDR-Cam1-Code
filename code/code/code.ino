@@ -50,13 +50,13 @@ void loop()
       xSemaphoreGive(GPS.mutex); // lock the mutex
 
       if (fix_check){ // if there is a gnss lock then print the data
-        Serial.printf("| GPS FIX | LAT: %.6f LON: %.6f SATS: %d\n", lat, lon, sats);
+        Serial.printf("\n| GPS FIX | LAT: %.6f LON: %.6f SATS: %d\n", lat, lon, sats);
       }
       else if (GPS.data_Received ||data_check){ // if its receiving lines but not yet got a lock print waiting for fix line
-        Serial.println("| GPS COMMUNICATING | Waiting for satellite fix...");
+        Serial.println("\n| GPS COMMUNICATING | Waiting for satellite fix...");
       }
       else{ // if its not receiving anything show that there is an error
-        Serial.println("| GPS NO DATA | error not receiving");
+        Serial.println("\n| GPS NO DATA | error not receiving");
       }
     }
   }

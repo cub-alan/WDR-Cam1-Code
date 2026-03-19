@@ -3,6 +3,7 @@
 
 #include "Cam.hpp" // include the hpp file so it has acess to all nessesary librarys
 
+
 //Pin Definitions were taken from the XIAO ESP32-S3 Sense section for the camera webserver example code
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM -1
@@ -20,10 +21,14 @@
 #define VSYNC_GPIO_NUM 38
 #define HREF_GPIO_NUM  47
 #define PCLK_GPIO_NUM  13
-httpd_handle_t Server = NULL;
+bool camera_initialized = false;
 
 // create a funtion to handle the stream and return any esp errors and points to the http request object
 esp_err_t Cam1_Stream_Update(httpd_req_t *Server_Request) { 
+    if (!camera_initialized) {
+        httpd_resp_set_type(Server_Request, "text/plain");
+        return httpd_resp_send(Server_Request, "Camera not initialized", 22);
+    }
     camera_fb_t * Cam1_Frame_Buffer = NULL; // creates a pointer to the frame buffer for the camera 
     esp_err_t Error_Check = ESP_OK; // used to shows the result of future operations
     size_t JPG_Buffer_Size = 0; // creates a buffer to store a jpeg image in
@@ -103,12 +108,20 @@ void Cam1_init() {
     config.jpeg_quality = 12;
     config.fb_count = 1;
 
-    esp_camera_init(&config);
+    esp_err_t err = esp_camera_init(&config);
+
+    if (err != ESP_OK) {
+        Serial.printf("Camera init failed with error 0x%x", err);
+        camera_initialized = false;
+        return;
+    }
+    Serial.println("Camera init succeeded");
+    camera_initialized = true;
 
     // the following is manual sensor adjustments for better stability (taken from the example code)
     sensor_t * sens = esp_camera_sensor_get(); // gets the camera type and sets it to pointer sens
 
-    if (sens->id.PID == OV3660_PID) { // if it picks up the correct camera type do the following
+    if (sens->id.PID == OV3660_PID || sens->id.PID == OV2640_PID) { // if it picks up the correct camera type do the following
         sens->set_vflip(sens, 1); // flip the camera vertically to flip it back to normal 
         sens->set_brightness(sens, -3);// lower the brightness to improve video quality
         sens->set_saturation(sens, -1);// lower the saturation to improve video quality
