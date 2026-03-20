@@ -23,8 +23,13 @@ void setup() {
   
   Cam1_Server_Init(); // connect the gnss data stream and camera data stream to the wifi
 
-  Serial.print("Camera Ready! Use 'http://");
+  Serial.print("for cam use 'http://");
   Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+  Serial.println("/stream");
+
+  Serial.print("for gps use 'http://");
+  Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+  Serial.println("/status");
 }
 
 void loop()
