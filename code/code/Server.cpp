@@ -65,11 +65,35 @@ void Cam1_Server_Init() {
 
   // create a variable and store the debugging/status URL in it to be able to acess relevent info
   static httpd_uri_t GPS_Status_URI = {.uri = "/status", .method = HTTP_GET, .handler = GPS_Status_Update, .user_ctx = NULL};
+
+  static httpd_uri_t SD_List_URI = {
+    .uri = "/list",
+    .method = HTTP_GET,
+    .handler = SD_List_Handler,
+    .user_ctx = NULL
+};
+
+static httpd_uri_t SD_File_URI = {
+    .uri = "/file",
+    .method = HTTP_GET,
+    .handler = SD_File_Handler,
+    .user_ctx = NULL
+};
+
+static httpd_uri_t SD_Delete_URI = {
+    .uri = "/delete",
+    .method = HTTP_GET,
+    .handler = SD_Delete_Handler,
+    .user_ctx = NULL
+};
     
   // Start the server
   if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
     httpd_register_uri_handler(Server, &Stream_URI); // create the cameras page on the server 
     httpd_register_uri_handler(Server, &GPS_Status_URI); // create the status page on the server
+    httpd_register_uri_handler(Server, &SD_List_URI);
+    httpd_register_uri_handler(Server, &SD_File_URI);
+    httpd_register_uri_handler(Server, &SD_Delete_URI);
     Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
   }
 }
@@ -79,12 +103,18 @@ void WIFI_Connect(){
     WiFi.begin(ssid, password);
     WiFi.setSleep(false);
 
-    while (WiFi.status() != WL_CONNECTED) {
+    unsigned long WIFI_Boot_Timer = millis();
+
+    while (WiFi.status() != WL_CONNECTED && millis() - WIFI_Boot_Timer <5000) {
         delay(500);
         Serial.print(".");
     }
 
-    Serial.println("\n WiFi connected");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\n WiFi connected");
+        Serial.print("IP: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("\n WiFi failed now using SD mode");
+    }
 }

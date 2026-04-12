@@ -10,5 +10,6 @@
 #include "Gps.hpp"
 #include "Cam.hpp"
 #include "Server.hpp"
+#include "SD.hpp"
 
 #endif

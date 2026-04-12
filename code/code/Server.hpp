@@ -11,6 +11,7 @@
 #include "Gps.hpp"
 #include <WiFi.h>
 #include "Arduino.h"
+#include "SD.hpp"
 
 // initialise the ssid and password to create the web server on
 extern const char* ssid; 
