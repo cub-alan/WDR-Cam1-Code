@@ -61,31 +61,14 @@ void Cam1_Server_Init() {
   Cam1_Server_Config.server_port = 80; // set the webservers pot to number 80 which is standard
 
   // create a variable and store the cameras URL in it for streaming and to asses the cams veiw
-  static httpd_uri_t Stream_URI = {.uri = "/stream", .method = HTTP_GET, .handler = Cam_Stream_Handler, .user_ctx  = NULL}; 
+  static httpd_uri_t Stream_URI = {.uri = "/stream1", .method = HTTP_GET, .handler = Cam_Stream_Handler, .user_ctx  = NULL}; 
 
   // create a variable and store the debugging/status URL in it to be able to acess relevent info
   static httpd_uri_t GPS_Status_URI = {.uri = "/status", .method = HTTP_GET, .handler = GPS_Status_Update, .user_ctx = NULL};
 
-  static httpd_uri_t SD_List_URI = {
-    .uri = "/list",
-    .method = HTTP_GET,
-    .handler = SD_List_Handler,
-    .user_ctx = NULL
-};
-
-static httpd_uri_t SD_File_URI = {
-    .uri = "/file",
-    .method = HTTP_GET,
-    .handler = SD_File_Handler,
-    .user_ctx = NULL
-};
-
-static httpd_uri_t SD_Delete_URI = {
-    .uri = "/delete",
-    .method = HTTP_GET,
-    .handler = SD_Delete_Handler,
-    .user_ctx = NULL
-};
+  static httpd_uri_t SD_List_URI = {.uri = "/list",.method = HTTP_GET,.handler = SD_List_Handler,.user_ctx = NULL};
+  static httpd_uri_t SD_File_URI = {.uri = "/file",.method = HTTP_GET,.handler = SD_File_Handler,.user_ctx = NULL};
+  static httpd_uri_t SD_Delete_URI = {.uri = "/delete",.method = HTTP_GET,.handler = SD_Delete_Handler,.user_ctx = NULL};
     
   // Start the server
   if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
