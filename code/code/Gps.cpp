@@ -11,8 +11,6 @@ GnssData GPS; // retreive the GnssData struct and give in namespace GPS
 #define GNSS_TX 43
 #define GNSS_BAUD 9600
 
-//========================================================================================================================================================
-
 bool Checksum(const char* GNSS_Data_Line){ // a function that will return true or false from the pointer to the gnss line fed in
   if (*GNSS_Data_Line != '$') { // if the gnss data line does not start with the dolar sign 
     return false; // feed back false to function
@@ -32,7 +30,6 @@ bool Checksum(const char* GNSS_Data_Line){ // a function that will return true o
 
   return false; // else return false
 }
-//============================================================================================================================================================
 
 void Gnss_init(){
   GPS.mutex = xSemaphoreCreateMutex(); // create the mutex for the gps
@@ -47,7 +44,6 @@ void Gnss_init(){
   TaskHandle_t GNSS_Handler = NULL; // declair the task required
   xTaskCreatePinnedToCore(GnssTask,"GNSS Task",4096,NULL,1,&GNSS_Handler,1); //create the gnss task on core 1 (seperate from the camera) with GNSS_Handler as the task
 }
-//=====================================================================================================================================================
 
 void GnssTask(void *param){
   char line[128];
@@ -55,13 +51,6 @@ void GnssTask(void *param){
   unsigned long last_data_time = 0;
 
   while (true){
-
-    if (GNSS.available()){
-      if (millis() - last_data_time > 5000) {
-        Serial.println(">>> Serial data detected on GNSS pins! <<<");
-        last_data_time = millis();
-      }
-    }
 
     while (GNSS.available()){
 
@@ -183,7 +172,6 @@ void GnssTask(void *param){
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
-//===============================================================================================================================================================
 
 esp_err_t GPS_Status_Update(httpd_req_t *Status_Request) { // a function that returns error for the status request
     char GNSS_Write[256]; // create a buffer for the GNSS to be able to write in

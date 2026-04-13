@@ -3,6 +3,13 @@
 
 #include "MyLib.hpp"
 
+enum SystemMode {
+  MODE_WIFI,
+  MODE_SD
+};
+
+SystemMode currentMode = MODE_SD;
+
 void setup() {
 
   Serial.begin(115200); // set the terminal baud rate and begin the terminal
@@ -26,6 +33,7 @@ void setup() {
   
   if (WiFi.status() == WL_CONNECTED){
     Cam1_Server_Init(); // connect the gnss data stream and camera data stream to the wifi
+    currentMode = MODE_WIFI;
   }
 
   Serial.print("for camera use 'http://");
@@ -40,46 +48,47 @@ void setup() {
 void loop()
 {
   static bool server_running = (WiFi.status() == WL_CONNECTED);
-
   static unsigned long timer = 0, WIFI_Retry = 0; // create a variable to be able to do non blocking timers
-
-  static double Prev_Lat = 0, Prev_Lon = 0;
-
   const int SD_SAMPLE_RATE = 2000;
+  wl_status_t status = WiFi.status();
 
-  bool WIFI_Connection_Check = (WiFi.status() == WL_CONNECTED);
-
-  if (!WIFI_Connection_Check && millis() - WIFI_Retry > 2000) { // retry wifi connect every 2 seconds
-    WIFI_Retry = millis();
-    WiFi.disconnect();
-    WiFi.begin(ssid, password);
-  }
-  if (WIFI_Connection_Check && !server_running) {
+   if (status == WL_CONNECTED && currentMode != MODE_WIFI) {
+    Serial.println("Switching to WIFI mode");
     Cam1_Server_Init();
     server_running = true;
-    Serial.println("Switched to WiFi streaming mode");
+    currentMode = MODE_WIFI;
+    SD_UploadAll(); // upload stored data
   }
 
-  if (!WIFI_Connection_Check && !server_running){
-    if (millis() - timer > SD_SAMPLE_RATE){ // every 1000ms 
-      timer = millis(); // set the millis to the timer to allow for the next loop to run at 1000ms 
+  if (status != WL_CONNECTED && currentMode != MODE_SD) {
+    Serial.println("Switching to SD mode");
+    if (server_running) {
+      httpd_stop(Server);
+      server_running = false;
+    }
+    currentMode = MODE_SD;
+  }
 
+  if (WiFi.status() == WL_DISCONNECTED && millis() - WIFI_Retry > 5000) {
+    WIFI_Retry = millis();
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.begin(ssid, password);
+  }
+
+  if (currentMode == MODE_SD) {
+    if (millis() - timer > SD_SAMPLE_RATE){
+      timer = millis();
       GnssData snapshot;
-
-      if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20))){ // if the mutex is readable
+      if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20))){
         snapshot = GPS;
         xSemaphoreGive(GPS.mutex);
-      } 
-
+      }
       camera_fb_t *fb = esp_camera_fb_get();
-
-      SD_Sample(fb, snapshot);
-
-      esp_camera_fb_return(fb);
-
-      Prev_Lat  = snapshot.lat;
-      Prev_Lon  = snapshot.lon;
-      
+      if (fb) {
+        SD_Sample(fb, snapshot);
+        esp_camera_fb_return(fb);
+      }
     }
   }
 }

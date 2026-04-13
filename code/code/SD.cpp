@@ -82,11 +82,13 @@ esp_err_t SD_File_Handler(httpd_req_t *req) {
         if (httpd_query_key_value(query, "name", filename, sizeof(filename)) == ESP_OK) {
             snprintf(filepath, sizeof(filepath), "/samples/%s", filename);
         } else {
-            httpd_resp_send_400(req);
+            httpd_resp_set_status(req, "400 Bad Request");
+            httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
             return ESP_FAIL;
         }
     } else {
-        httpd_resp_send_400(req);
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
         return ESP_FAIL;
     }
 
@@ -125,6 +127,21 @@ esp_err_t SD_Delete_Handler(httpd_req_t *req) {
         }
     }
 
-    httpd_resp_send_400(req);
+    httpd_resp_set_status(req, "400 Bad Request");
+    httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
     return ESP_FAIL;
+}
+void SD_UploadAll() {
+    if (!SD_Check){
+        return;
+    }
+    File root = SD.open("/samples");
+    if (!root){ 
+        return;
+    }
+    File file = root.openNextFile();
+    while (file) {
+        String filename = String(file.name());
+        file = root.openNextFile();
+    }
 }
