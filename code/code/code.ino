@@ -34,15 +34,15 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED){
     Cam1_Server_Init(); // connect the gnss data stream and camera data stream to the wifi
     currentMode = MODE_WIFI;
+
+    Serial.print("for camera use 'http://");
+    Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+    Serial.println("/stream1");
+
+    Serial.print("for location stats use 'http://");
+    Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+    Serial.println("/status");
   }
-
-  Serial.print("for camera use 'http://");
-  Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
-  Serial.println("/stream");
-
-  Serial.print("for location stats use 'http://");
-  Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
-  Serial.println("/status");
 }
 
 void loop()
@@ -56,8 +56,18 @@ void loop()
     Serial.println("Switching to WIFI mode");
     Cam1_Server_Init();
     server_running = true;
-    currentMode = MODE_WIFI;
+
     SD_UploadAll(); // upload stored data
+
+    Serial.print("for camera use 'http://");
+    Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+    Serial.println("/stream1");
+
+    Serial.print("for location stats use 'http://");
+    Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
+    Serial.println("/status");
+
+    currentMode = MODE_WIFI;
   }
 
   if (status != WL_CONNECTED && currentMode != MODE_SD) {
