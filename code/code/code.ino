@@ -27,7 +27,11 @@ void setup() {
   Serial.println("CAM Initialized");
   delay(2000); // Wait 2000 ms
 
+  Lighting_Init();
+  Serial.println("Lighting Initialized");
+
   SD_Init();
+  Serial.println("SD Initialized");
 
   WIFI_Connect(); // connect to the wifi
   
@@ -50,14 +54,18 @@ void loop()
   static bool server_running = (WiFi.status() == WL_CONNECTED);
   static unsigned long timer = 0, WIFI_Retry = 0; // create a variable to be able to do non blocking timers
   const int SD_SAMPLE_RATE = 2000;
+
+  Lighting_Update();
+
   wl_status_t status = WiFi.status();
 
-   if (status == WL_CONNECTED && currentMode != MODE_WIFI) {
+  if (status == WL_CONNECTED && currentMode != MODE_WIFI) {
     Serial.println("Switching to WIFI mode");
+    
     Cam1_Server_Init();
     server_running = true;
 
-    SD_UploadAll(); // upload stored data
+    SD_Upload_Begin(); // start uploading sd card data
 
     Serial.print("for camera use 'http://");
     Serial.print(WiFi.localIP()); // paste the ip of the stream so it can be opened on the browser
@@ -72,6 +80,7 @@ void loop()
 
   if (status != WL_CONNECTED && currentMode != MODE_SD) {
     Serial.println("Switching to SD mode");
+
     if (server_running) {
       httpd_stop(Server);
       server_running = false;
@@ -89,11 +98,13 @@ void loop()
   if (currentMode == MODE_SD) {
     if (millis() - timer > SD_SAMPLE_RATE){
       timer = millis();
+
       GnssData snapshot;
       if (xSemaphoreTake(GPS.mutex, pdMS_TO_TICKS(20))){
         snapshot = GPS;
         xSemaphoreGive(GPS.mutex);
       }
+
       camera_fb_t *fb = esp_camera_fb_get();
       if (fb) {
         SD_Sample(fb, snapshot);
@@ -101,4 +112,7 @@ void loop()
       }
     }
   }
+   if (currentMode == MODE_WIFI) {
+        SD_Upload_Task();
+    }
 }
