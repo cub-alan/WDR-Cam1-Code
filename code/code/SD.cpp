@@ -91,3 +91,99 @@ void SD_Upload_Task() {
     // move to next file
     currentFile = root.openNextFile();
 }
+
+#include "esp_http_server.h"
+
+// LIST FILES
+esp_err_t SD_List_Handler(httpd_req_t *req) {
+    if (!SD_Check) {
+        httpd_resp_send(req, "SD not ready", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    File root = SD.open("/samples");
+    if (!root || !root.isDirectory()) {
+        httpd_resp_send(req, "No directory", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    String response = "[";
+
+    File file = root.openNextFile();
+    bool first = true;
+
+    while (file) {
+        if (!first) response += ",";
+        response += "\"" + String(file.name()) + "\"";
+        first = false;
+
+        file = root.openNextFile();
+    }
+
+    response += "]";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, response.c_str(), response.length());
+
+    return ESP_OK;
+}
+esp_err_t SD_File_Handler(httpd_req_t *req) {
+    char filepath[128];
+
+    // Expect: /file?name=xxx.jpg
+    if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
+        httpd_resp_send(req, "No query", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    char filename[64];
+    if (httpd_query_key_value(filepath, "name", filename, sizeof(filename)) != ESP_OK) {
+        httpd_resp_send(req, "No filename", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    String path = "/samples/" + String(filename);
+    File file = SD.open(path);
+
+    if (!file) {
+        httpd_resp_send(req, "File not found", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/octet-stream");
+
+    uint8_t buffer[1024];
+    while (file.available()) {
+        size_t len = file.read(buffer, sizeof(buffer));
+        httpd_resp_send_chunk(req, (const char*)buffer, len);
+    }
+
+    file.close();
+    httpd_resp_send_chunk(req, NULL, 0); // end response
+
+    return ESP_OK;
+}
+esp_err_t SD_Delete_Handler(httpd_req_t *req) {
+    char query[128];
+
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
+        httpd_resp_send(req, "No query", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    char filename[64];
+    if (httpd_query_key_value(query, "name", filename, sizeof(filename)) != ESP_OK) {
+        httpd_resp_send(req, "No filename", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+
+    String path = "/samples/" + String(filename);
+
+    if (SD.remove(path)) {
+        httpd_resp_send(req, "Deleted", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
+    } else {
+        httpd_resp_send(req, "Delete failed", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
+    }
+}

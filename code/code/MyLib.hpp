@@ -11,6 +11,6 @@
 #include "Cam.hpp"
 #include "Server.hpp"
 #include "SD.hpp"
-#include "Lighting.hpp"
+#include "RingLight.hpp"
 
 #endif

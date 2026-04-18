@@ -2,6 +2,8 @@
 // a file to set up the streaming of the camera and gnss data and to connect to the wifi
 
 #include "Server.hpp"
+#include "SD.hpp"
+
 
 // set the ssid and password 
 const char* ssid = "iPhone"; 

@@ -34,10 +34,12 @@ struct GnssData {
   bool Fix_Val = false;
   bool data_Received = false;
 
-  SemaphoreHandle_t mutex = NULL; // initialise a mutex used to protect and read gnss data from other tasks
+  // initialise a mutex used to protect and read gnss data from other tasks
+  SemaphoreHandle_t mutex = NULL; 
 };
 
-extern GnssData GPS; // be able to utilise data from the struct using namespace GPS
+// be able to utilise data from the struct using namespace GPS
+extern GnssData GPS; 
 
 // initialise gnss functions
 void Gnss_init();

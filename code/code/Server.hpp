@@ -1,5 +1,5 @@
 //Jacob Holwill 10859926
-//the point of this file is to be able to use it to call Cam functions in main
+//the point of this file is to be able to use it to call server functions in main
 
 // ensure the .hpp file doesnt get defined more then once
 #ifndef SERVER_HPP 
