@@ -1,189 +1,174 @@
 #include "SD.hpp"
+#include <WiFi.h>
 
-const int SD_Pin = 21;
-bool SD_Check = false;
+static SemaphoreHandle_t SDMutex = NULL;
+
+static bool SD_send = false;
 
 static File root;
 static File currentFile;
-static bool uploading = false;
 
 void SD_Init() {
-    if (!SD.begin(SD_Pin)) {
-        Serial.println("SD Card Mount Failed");
-        SD_Check = false;
+    if (!SD.begin()) { // if the SD card fails to start skip
+        Serial.println("SD init failed");
         return;
     }
 
-    if (!SD.exists("/samples")) {
-        SD.mkdir("/samples");
-        Serial.println("Created /samples folder");
+    SDMutex = xSemaphoreCreateMutex(); // create a mutx for the sd 
+
+    xTaskCreatePinnedToCore(SD_Task,"SD Task",8192,NULL,1,NULL,1); // create a multithreading task pinned to core 1
+}
+void SD_StartSending() {
+    if (xSemaphoreTake(SDMutex, portMAX_DELAY)) { // check the mutex is free
+        // open the file and set the send variable to true
+        root = SD.open("/");
+        currentFile = File();
+        SD_send = true;
+        xSemaphoreGive(SDMutex); // give back the mutex
     }
-
-    Serial.println("SD Card Ready");
-    SD_Check = true;
 }
 
-bool SD_Sample(camera_fb_t *fb, GnssData data) {
-    if (!SD_Check || !fb) return false;
-
-    char base[64];
-    snprintf(base, sizeof(base), "/samples/%02d%02d%02d_%lu",
-             data.hour, data.min, data.sec, millis());
-
-    String imgPath = String(base) + ".jpg";
-    File imgFile = SD.open(imgPath, FILE_WRITE);
-    if (!imgFile) return false;
-
-    imgFile.write(fb->buf, fb->len);
-    imgFile.close();
-
-    String txtPath = String(base) + ".txt";
-    File txtFile = SD.open(txtPath, FILE_WRITE);
-    if (!txtFile) return false;
-
-    txtFile.printf("lat=%.6f\nlon=%.6f\nalt=%.2f\nsats=%d\n",
-                   data.lat, data.lon, data.alt, data.satellites);
-    txtFile.close();
-
-    return true;
+void SD_StopSending() {
+    SD_send = false; // stop the code from sending data
 }
-
-void SD_Upload_Begin() {
-    if (!SD_Check) return;
-
-    root = SD.open("/samples");
-    if (!root || !root.isDirectory()) {
-        Serial.println("Upload failed: no folder");
-        return;
+bool WIFI_Check() {
+    if (WiFi.status() != WL_CONNECTED) { // if wifi connection failes return false
+        return false;
     }
-
-    currentFile = root.openNextFile();
-    uploading = true;
-
-    Serial.println("Upload started");
-}
-
-bool SD_Upload_Active() {
-    return uploading;
-}
-
-void SD_Upload_Task() {
-    static unsigned long lastUpload = 0;
-
-    // limit rate (important)
-    if (millis() - lastUpload < 200) return;
-    lastUpload = millis();
-
-    if (!uploading) return;
-
-    if (!currentFile) {
-        root.close();
-        uploading = false;
-        Serial.println("Upload complete");
-        return;
+    else{ // if the wifi connects return true
+        return true;
     }
-
-    String filename = String(currentFile.name());
-    Serial.println("Uploading: " + filename);
-
-    currentFile.close();
-
-    // move to next file
-    currentFile = root.openNextFile();
 }
 
-#include "esp_http_server.h"
+void SD_Task(void *param) {
 
-// LIST FILES
+    while (true) {
+
+        if (!SD_send) { // if the SD sending is set as true continue
+            vTaskDelay(pdMS_TO_TICKS(100)); 
+            continue;
+        }
+
+        if (xSemaphoreTake(SDMutex, pdMS_TO_TICKS(50))){ // check if mutex is free 
+            if (!currentFile) { //
+                currentFile = root.openNextFile();
+
+                if (!currentFile) {
+                    root.close();
+                    SD_send = false;
+                    xSemaphoreGive(SDMutex);
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    continue;
+                }
+            }
+
+            if (currentFile) {
+
+                String filename = String(currentFile.name());
+
+                bool Check = WIFI_Check();
+
+                currentFile.close();   // MUST close before delete
+
+                if (Check) {
+                    if (SD.remove(filename)) {
+                        Serial.println("Deleted: " + filename);
+                    } else {
+                        Serial.println("Failed to delete: " + filename);
+                    }
+                } else {
+                    Serial.println("Upload failed, keeping: " + filename);
+                }
+                currentFile = File(); // reset
+            }
+
+            xSemaphoreGive(SDMutex);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 esp_err_t SD_List_Handler(httpd_req_t *req) {
-    if (!SD_Check) {
-        httpd_resp_send(req, "SD not ready", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+
+    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+        return httpd_resp_send_500(req);
     }
 
-    File root = SD.open("/samples");
-    if (!root || !root.isDirectory()) {
-        httpd_resp_send(req, "No directory", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
-    }
-
-    String response = "[";
-
+    File root = SD.open("/");
     File file = root.openNextFile();
-    bool first = true;
+
+    String json = "[";
 
     while (file) {
-        if (!first) response += ",";
-        response += "\"" + String(file.name()) + "\"";
-        first = false;
-
+        if (json.length() > 1) json += ",";
+        json += "\"" + String(file.name()) + "\"";
         file = root.openNextFile();
     }
 
-    response += "]";
+    json += "]";
+
+    xSemaphoreGive(sdMutex);
 
     httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, response.c_str(), response.length());
-
-    return ESP_OK;
+    return httpd_resp_send(req, json.c_str(), json.length());
 }
+
+
 esp_err_t SD_File_Handler(httpd_req_t *req) {
-    char filepath[128];
 
-    // Expect: /file?name=xxx.jpg
+    char filepath[64];
     if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
-        httpd_resp_send(req, "No query", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+        return httpd_resp_send_400(req);
     }
 
-    char filename[64];
-    if (httpd_query_key_value(filepath, "name", filename, sizeof(filename)) != ESP_OK) {
-        httpd_resp_send(req, "No filename", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+        return httpd_resp_send_500(req);
     }
 
-    String path = "/samples/" + String(filename);
-    File file = SD.open(path);
+    File file = SD.open(filepath);
 
     if (!file) {
-        httpd_resp_send(req, "File not found", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+        xSemaphoreGive(sdMutex);
+        return httpd_resp_send_404(req);
     }
 
     httpd_resp_set_type(req, "application/octet-stream");
 
-    uint8_t buffer[1024];
-    while (file.available()) {
-        size_t len = file.read(buffer, sizeof(buffer));
-        httpd_resp_send_chunk(req, (const char*)buffer, len);
+    char buffer[1024];
+    size_t readBytes;
+
+    while ((readBytes = file.readBytes(buffer, sizeof(buffer))) > 0) {
+        httpd_resp_send_chunk(req, buffer, readBytes);
     }
 
     file.close();
-    httpd_resp_send_chunk(req, NULL, 0); // end response
+    xSemaphoreGive(sdMutex);
 
+    httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
+
+
 esp_err_t SD_Delete_Handler(httpd_req_t *req) {
-    char query[128];
 
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
-        httpd_resp_send(req, "No query", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+    char filepath[64];
+    if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
+        return httpd_resp_send_400(req);
     }
 
-    char filename[64];
-    if (httpd_query_key_value(query, "name", filename, sizeof(filename)) != ESP_OK) {
-        httpd_resp_send(req, "No filename", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+        return httpd_resp_send_500(req);
     }
 
-    String path = "/samples/" + String(filename);
+    bool success = SD.remove(filepath);
 
-    if (SD.remove(path)) {
-        httpd_resp_send(req, "Deleted", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
+    xSemaphoreGive(sdMutex);
+
+    if (success) {
+        return httpd_resp_sendstr(req, "Deleted");
     } else {
-        httpd_resp_send(req, "Delete failed", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+        return httpd_resp_send_500(req);
     }
 }
+

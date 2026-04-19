@@ -46,68 +46,72 @@ void Gnss_init(){
 }
 
 void GnssTask(void *param){
+  // create needed variables
   char line[128];
   int idx = 0;
   unsigned long last_data_time = 0;
 
   while (true){
 
-    while (GNSS.available()){
+    while (GNSS.available()){ // while the gnss is readable
 
-      char c = GNSS.read();
+      char c = GNSS.read(); // read the value of the gnss
 
-      if (c == '\r') {
+      if (c == '\r') { // wait for a line end to continue
         continue;
       }
 
-      if (c == '\n'){
+      if (c == '\n'){ // if theres a new line
         line[idx] = '\0';
         idx = 0;
 
-        if (strlen(line) < 10){
+        if (strlen(line) < 10){ // check the line is invalid skip
           continue;
         }
 
-        if (!Checksum(line)){
+        if (!Checksum(line)){ //if line fails skip
           continue;
         }
 
-        if (strncmp(line, "$GNGGA", 6) != 0 && strncmp(line, "$GPGGA", 6) != 0){
+        if (strncmp(line, "$GNGGA", 6) != 0){ // if the line does not start with $GNGGA skip
           continue;
         }
         
+        // create variables for parsing 
         char *fields[15];
         int field = 0;
         char *Pointer_GNSS = line;
-        while (Pointer_GNSS && field < 15) {
-          fields[field++] = Pointer_GNSS;
-          Pointer_GNSS = strchr(Pointer_GNSS, ',');
-          if (Pointer_GNSS) {
-            *Pointer_GNSS = '\0';
-            Pointer_GNSS++;
+
+        while (Pointer_GNSS && field < 15) { // parse the line
+          fields[field++] = Pointer_GNSS; // set the postion in the feild vector to pointer_GNSS
+          Pointer_GNSS = strchr(Pointer_GNSS, ','); // make it so the feilds are seperated by the commas
+          if (Pointer_GNSS) { // checks the pointer is valid
+            *Pointer_GNSS = '\0'; set the charicter is null
+            Pointer_GNSS++; // move to the next character
           }
         }
 
-        if (field < 10) {
+        if (field < 10) {// if the number of feilds is less then 10 skip
           continue;
         }
 
-        int quality = atoi(fields[6]);
+        int quality = atoi(fields[6]); // set the quality value to feild 6
 
-        // Set data_Received to true as soon as we get a valid GGA sentence, even if no fix yet
-        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){
-          GPS.data_Received = true;
-          xSemaphoreGive(GPS.mutex);
+        
+        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){ // check if the mutex is free and attempt to access it
+          GPS.data_Received = true; // Set data Received variable to true when a valid line is received
+          xSemaphoreGive(GPS.mutex); // return the mutex
         }
 
-        if (quality == 0){
-          if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){
-            GPS.Fix_Val = false;
-            xSemaphoreGive(GPS.mutex);
+        if (quality == 0){ // if these is no fix on any satilites
+          if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){ //access the mutex
+            GPS.Fix_Val = false; // set the variable that checks its receiving a correct value to 0
+            xSemaphoreGive(GPS.mutex); // return the mutex
           }
-          continue;
+          continue; // skip the rest of the code
         }
 
+        // set the values of all data to the value in their feild position on the received line 
         const char* latStr = fields[2];
         const char* latDir = fields[3];
         const char* lonStr = fields[4];
@@ -116,39 +120,45 @@ void GnssTask(void *param){
         const char* satStr = fields[7];
         const char* timeStr = fields[1];
 
-        if (!latStr || !lonStr || !latDir || !lonDir || !timeStr) {
+        if (!latStr || !lonStr || !latDir || !lonDir || !timeStr) { // check if all data is received and if not skip
           continue;
         }
 
+        // these two variables take the received ascii test and converts them to a float value
         double Convert_Lat = atof(latStr);
         double Convert_Lon = atof(lonStr);
 
-        int latDeg = Convert_Lat / 100;
-        int lonDeg = Convert_Lon / 100;
+        // convert the received latitude and longatude from degree minute to decimal degree
+        int latDeg = Convert_Lat / 100; // gets the int from the degree
+        int lonDeg = Convert_Lon / 100; // gets the int from the degree
 
-        double lat = latDeg + (Convert_Lat - latDeg * 100) / 60.0;
-        double lon = lonDeg + (Convert_Lon - lonDeg * 100) / 60.0;
+        double lat = latDeg + (Convert_Lat - latDeg * 100) / 60.0; // gets the decimal from the minute
+        double lon = lonDeg + (Convert_Lon - lonDeg * 100) / 60.0; // get the decimal from the minute
 
-        if (latDir[0] == 'S') {
+        if (latDir[0] == 'S') { // if the latitude direction specifies south flip the polarity of the latitude value
           lat = -lat;
         } 
-        if (lonDir[0] == 'W') {
+        if (lonDir[0] == 'W') { // if the longatude direction specifies west flip the polarity of the longatude value
           lon = -lon;
         } 
 
+        // convert the values for the altitude and number of satilites from ascii to the desired variable type
         float alt = atof(altStr);
         int satellites = atoi(satStr);
 
+        // initialise variables to find the time
         int hour = 0;
         int min = 0;
         int sec = 0;
 
-        if (timeStr && strlen(timeStr) >= 6){
+        if (timeStr && strlen(timeStr) >= 6){ // check the time feild exists and has a value that is large enought to be the time
+          // convert each feild to be the time 
           hour = (timeStr[0]-'0')*10 + (timeStr[1]-'0');
           min = (timeStr[2]-'0')*10 + (timeStr[3]-'0');
           sec = (timeStr[4]-'0')*10 + (timeStr[5]-'0');
         }
-        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){
+        if (xSemaphoreTake(GPS.mutex, portMAX_DELAY)){ // if the gnss mutex is free
+          // set all values to the received value
           GPS.lat = lat;
           GPS.lon = lon;
           GPS.alt = alt;
@@ -158,14 +168,14 @@ void GnssTask(void *param){
           GPS.sec = sec;
           GPS.Fix_Val  = true;
           GPS.data_Received = true;
-          xSemaphoreGive(GPS.mutex);
+          xSemaphoreGive(GPS.mutex); // return the mutex
         }
       }
-      else {
-        if (idx < sizeof(line) - 1) {
-          line[idx++] = c;
-        } else {
-          idx = 0;
+      else { // if there is not a new line
+        if (idx < sizeof(line) - 1) { //if there is space in the buffer
+          line[idx++] = c; // store the character in position index then add one to it
+        } else { // if no space
+          idx = 0; // reset the index
         }
       }
     }
