@@ -2,9 +2,7 @@
 #include <WiFi.h>
 
 static SemaphoreHandle_t SDMutex = NULL;
-
 static bool SD_send = false;
-
 static File root;
 static File currentFile;
 
@@ -24,6 +22,7 @@ void SD_StartSending() {
         root = SD.open("/");
         currentFile = File();
         SD_send = true;
+
         xSemaphoreGive(SDMutex); // give back the mutex
     }
 }
@@ -31,13 +30,40 @@ void SD_StartSending() {
 void SD_StopSending() {
     SD_send = false; // stop the code from sending data
 }
-bool WIFI_Check() {
+bool Send_File(File file) {
     if (WiFi.status() != WL_CONNECTED) { // if wifi connection failes return false
         return false;
     }
-    else{ // if the wifi connects return true
-        return true;
+
+    HTTPClient http;
+
+    String serverURL = "";
+
+    http.begin(serverURL);
+
+    // Set headers
+    http.addHeader("Content-Type", "application/octet-stream");
+    http.addHeader("File-Name", String(file.name()));
+
+    int fileSize = file.size();
+
+    int httpResponseCode = http.sendRequest("POST", &file, fileSize);
+
+    if (httpResponseCode > 0) {
+        Serial.print("HTTP Response: ");
+        Serial.println(httpResponseCode);
+
+        http.end();
+
+        if (httpResponseCode == 200) {
+            return true;
+        }
+    } else {
+        Serial.print("Upload failed: ");
+        Serial.println(http.errorToString(httpResponseCode));
     }
+    http.end();
+    return false;
 }
 
 void SD_Task(void *param) {
@@ -66,17 +92,15 @@ void SD_Task(void *param) {
 
                 String filename = String(currentFile.name());
 
-                bool Check = WIFI_Check();
+                bool Check = Send_File(currentFile.name());
 
                 currentFile.close();   // MUST close before delete
 
                 if (Check) {
-                    if (SD.remove(filename)) {
-                        Serial.println("Deleted: " + filename);
-                    } else {
+                    if (!SD.remove(filename)) {
                         Serial.println("Failed to delete: " + filename);
-                    }
-                } else {
+                    } 
+                else {
                     Serial.println("Upload failed, keeping: " + filename);
                 }
                 currentFile = File(); // reset
