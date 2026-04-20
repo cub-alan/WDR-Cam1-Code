@@ -29,15 +29,15 @@ void setup() {
   Serial.println("GNSS Initialized");
   delay(2000); // Wait 2000 ms
 
+  SD_Init(); // initialise the SD card 
+  Serial.println("SD Initialized");
+
   Cam1_init(); // initilise the Camera
   Serial.println("CAM Initialized");
   delay(2000); // Wait 2000 ms
 
   Light_init(); // initialise the ring light and LDR code
   Serial.println("Lighting Initialized");
-
-  SD_Init(); // initialise the SD card 
-  Serial.println("SD Initialized");
 
   pinMode(Sample_Sync_Pin, OUTPUT);
   digitalWrite(Sample_Sync_Pin, LOW);
@@ -47,6 +47,8 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED){ // if wifi is connected
     Cam1_Server_Init(); // initialise the server for camera 1
     currentMode = MODE_WIFI; // set the mode to WIFI
+
+    SD_Start_Sending();
 
     // print out the weblinks for the Camera and gnss
     Serial.print("for camera use 'http://");
@@ -73,7 +75,7 @@ void Trigger_Sample() {
 
     String filename = "/cam1_" + String(sample_id) + ".jpg"; //name the cam 1 file of this id group
 
-    File file = SD.open(filename, FILE_WRITE); // create the file in writeable format
+    File file = SD_MMC.open(filename, FILE_WRITE); // create the file in writeable format
     if (file) { // if the file has been created
       file.write(fb->buf, fb->len); // print the frame into the file
       file.close(); // close the file
@@ -85,7 +87,7 @@ void Trigger_Sample() {
 
     String filename = "/gnss_" + String(sample_id) + ".json"; // name the gnss file with this groups id
 
-    File file = SD.open(filename, FILE_WRITE); // create the file in writeable format
+    File file = SD_MMC.open(filename, FILE_WRITE); // create the file in writeable format
     if (file) { // check if the file is created 
       // print the gnss data into the file
       file.printf( "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d}",
@@ -100,6 +102,9 @@ void loop()
 {
   static bool server_running = (WiFi.status() == WL_CONNECTED); // retreive the bool value for wifi connection status
   static unsigned long WIFI_Retry = 0; // create a variable to be able to do non blocking timers
+
+  Light_Check(); // read the ldr vlue and if below the threshold turn on the ring light
+  vTaskDelay(pdMS_TO_TICKS(10));
 
   // sets the mode to wifi if not already in wifi mode
   if (WiFi.status() == WL_CONNECTED){
@@ -149,7 +154,4 @@ void loop()
       Trigger_Sample(); // execute the sampling function
     }
   }
-
-  Light_Check(); // read the ldr vlue and if below the threshold turn on the ring light
-  vTaskDelay(pdMS_TO_TICKS(10));
 }

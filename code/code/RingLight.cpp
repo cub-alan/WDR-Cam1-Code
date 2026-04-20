@@ -32,6 +32,7 @@ void Light_Check() {
                 Ring.setPixelColor(i, Ring.Color(0, 0, 0, 255)); 
             }
             Ring.show(); // show the set values
+            Serial.print("Light on\n");
         }
         else{ // if above the threshold
             // turn off the LED ring

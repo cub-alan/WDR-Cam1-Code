@@ -7,19 +7,32 @@ static File root;
 static File currentFile;
 
 void SD_Init() {
-    if (!SD.begin()) { // if the SD card fails to start skip
+    delay(200);
+    
+    SD_MMC.setPins(7, 9, 8); // CLK, CMD, D0
+
+    if (!SD_MMC.begin("/sdcard", true)) { // if the SD card fails to start skip
         Serial.println("SD init failed");
+        return;
+    }
+
+    delay(200);
+
+    uint8_t cardType = SD_MMC.cardType();
+
+    if (cardType == CARD_NONE) {
+        Serial.println("No SD card attached");
         return;
     }
 
     SDMutex = xSemaphoreCreateMutex(); // create a mutx for the sd 
 
-    xTaskCreatePinnedToCore(SD_Task,"SD Task",8192,NULL,1,NULL,1); // create a multithreading task pinned to core 1
+    xTaskCreatePinnedToCore(SD_Task,"SD Task",8192,NULL,2,NULL,1); // create a multithreading task pinned to core 1
 }
 void SD_Start_Sending() {
     if (xSemaphoreTake(SDMutex, portMAX_DELAY)) { // check the mutex is free
         // open the file and set the send variable to true
-        root = SD.open("/");
+        root = SD_MMC.open("/");
         currentFile = File();
         SD_send = true;
 
@@ -97,7 +110,7 @@ void SD_Task(void *param) {
                 currentFile.close();   // MUST close before delete
 
                 if (Check) {
-                    if (!SD.remove(filename)) {
+                    if (!SD_MMC.remove(filename)) {
                         Serial.println("Failed to delete: " + filename);
                     } 
                 }
@@ -120,7 +133,7 @@ esp_err_t SD_List_Handler(httpd_req_t *req) {
         return httpd_resp_send_500(req);
     }
 
-    File root = SD.open("/");
+    File root = SD_MMC.open("/");
     File file = root.openNextFile();
 
     String json = "[";
@@ -153,7 +166,7 @@ esp_err_t SD_File_Handler(httpd_req_t *req) {
         return httpd_resp_send_500(req);
     }
 
-    File file = SD.open(filepath);
+    File file = SD_MMC.open(filepath);
 
     if (!file) {
         xSemaphoreGive(SDMutex);
@@ -190,7 +203,7 @@ esp_err_t SD_Delete_Handler(httpd_req_t *req) {
         return httpd_resp_send_500(req);
     }
 
-    bool success = SD.remove(filepath);
+    bool success = SD_MMC.remove(filepath);
 
     xSemaphoreGive(SDMutex);
 
