@@ -16,7 +16,7 @@ void SD_Init() {
 
     xTaskCreatePinnedToCore(SD_Task,"SD Task",8192,NULL,1,NULL,1); // create a multithreading task pinned to core 1
 }
-void SD_StartSending() {
+void SD_Start_Sending() {
     if (xSemaphoreTake(SDMutex, portMAX_DELAY)) { // check the mutex is free
         // open the file and set the send variable to true
         root = SD.open("/");
@@ -27,7 +27,7 @@ void SD_StartSending() {
     }
 }
 
-void SD_StopSending() {
+void SD_Stop_Sending() {
     SD_send = false; // stop the code from sending data
 }
 bool Send_File(File file) {
@@ -92,7 +92,7 @@ void SD_Task(void *param) {
 
                 String filename = String(currentFile.name());
 
-                bool Check = Send_File(currentFile.name());
+                bool Check = Send_File(currentFile);
 
                 currentFile.close();   // MUST close before delete
 
@@ -100,6 +100,7 @@ void SD_Task(void *param) {
                     if (!SD.remove(filename)) {
                         Serial.println("Failed to delete: " + filename);
                     } 
+                }
                 else {
                     Serial.println("Upload failed, keeping: " + filename);
                 }
@@ -115,7 +116,7 @@ void SD_Task(void *param) {
 
 esp_err_t SD_List_Handler(httpd_req_t *req) {
 
-    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+    if (!xSemaphoreTake(SDMutex, pdMS_TO_TICKS(100))) {
         return httpd_resp_send_500(req);
     }
 
@@ -132,7 +133,7 @@ esp_err_t SD_List_Handler(httpd_req_t *req) {
 
     json += "]";
 
-    xSemaphoreGive(sdMutex);
+    xSemaphoreGive(SDMutex);
 
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, json.c_str(), json.length());
@@ -143,17 +144,19 @@ esp_err_t SD_File_Handler(httpd_req_t *req) {
 
     char filepath[64];
     if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
-        return httpd_resp_send_400(req);
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
     }
 
-    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+    if (!xSemaphoreTake(SDMutex, pdMS_TO_TICKS(100))) {
         return httpd_resp_send_500(req);
     }
 
     File file = SD.open(filepath);
 
     if (!file) {
-        xSemaphoreGive(sdMutex);
+        xSemaphoreGive(SDMutex);
         return httpd_resp_send_404(req);
     }
 
@@ -167,7 +170,7 @@ esp_err_t SD_File_Handler(httpd_req_t *req) {
     }
 
     file.close();
-    xSemaphoreGive(sdMutex);
+    xSemaphoreGive(SDMutex);
 
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
@@ -178,16 +181,18 @@ esp_err_t SD_Delete_Handler(httpd_req_t *req) {
 
     char filepath[64];
     if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
-        return httpd_resp_send_400(req);
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
+        return ESP_FAIL;
     }
 
-    if (!xSemaphoreTake(sdMutex, pdMS_TO_TICKS(100))) {
+    if (!xSemaphoreTake(SDMutex, pdMS_TO_TICKS(100))) {
         return httpd_resp_send_500(req);
     }
 
     bool success = SD.remove(filepath);
 
-    xSemaphoreGive(sdMutex);
+    xSemaphoreGive(SDMutex);
 
     if (success) {
         return httpd_resp_sendstr(req, "Deleted");

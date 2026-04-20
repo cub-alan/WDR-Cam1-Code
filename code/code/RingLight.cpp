@@ -7,6 +7,8 @@
 static int LDR_Count = 0;
 static int LDR_Ave = 0;
 
+Adafruit_NeoPixel Ring(NUM_LEDS, RINGLIGHT_PIN, NEO_GRB + NEO_KHZ800);
+
 void Light_init() {
 
     pinMode(LDR_PIN, INPUT); // set the LDR into input mode on pin D0

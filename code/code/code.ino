@@ -11,7 +11,7 @@ enum SystemMode {
 SystemMode currentMode = MODE_SD; // sets the defualt mode to SD as wifi is not yet connected
 
 #define Sample_Sync_Pin D1 // offline image sync between cams
-volitile uint32_t sample_id = 0; // id to match data from same sample
+volatile uint32_t sample_id = 0; // id to match data from same sample
 
 unsigned long Prev_Sample = 0;
 const unsigned long Sample = 2000;
@@ -64,9 +64,9 @@ void Trigger_Sample() {
 
   sample_id++; // increase the id of the by 1 to keep relevent data grouped
 
-  digitalWrite(SYNC_PIN, HIGH); // send a pulse to the other board
+  digitalWrite(Sample_Sync_Pin, HIGH); // send a pulse to the other board
   delayMicroseconds(200);
-  digitalWrite(SYNC_PIN, LOW); // stop the pulse
+  digitalWrite(Sample_Sync_Pin, LOW); // stop the pulse
 
   camera_fb_t *fb = esp_camera_fb_get(); // get the current matrix frame
   if (fb) { // if the frame is received 

@@ -5,21 +5,21 @@
 #include "SD.hpp"
 
 // set the ssid and password 
-const char* ssid = "iPhone"; 
-const char* password = "12345678";
+const char* ssid = "Robot-Stu1"; 
+const char* password = "WANUT8PTODAY";
 
 httpd_handle_t Server = NULL; // create the server handle and set it to null
 esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam stream  is open
     camera_fb_t * fb = NULL; // get the frame matrix from the camera
     esp_err_t Status = ESP_OK; // check if matrix is retreived
 
-    Status = httpd_Statusp_set_type(req, "multipart/x-mixed-replace; boundary=frame"); // creates the continuous stream
+    Status = httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame"); // creates the continuous stream
    
     if(Status != ESP_OK){ // if the frame is not recieved then exit 
         return Status;
     }
 
-    httpd_Statusp_set_hdr(req, "Access-Control-Allow-Origin", "*"); // allows different devices to access the webserver
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*"); // allows different devices to access the webserver
 
     while(true) { 
         fb = esp_camera_fb_get(); // take a capture of the image
@@ -29,21 +29,21 @@ esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam 
             Status = ESP_FAIL;
             break;
         }
-        Status = httpd_Statusp_send_chunk(req, "--frame\r\n", 9); // create new frame marker
+        Status = httpd_resp_send_chunk(req, "--frame\r\n", 9); // create new frame marker
 
         if(Status == ESP_OK) { // if not broken
             char part_buf[128];
             // build the header of the frame
             int len = snprintf(part_buf, sizeof(part_buf),"Content-Type: image/jpeg\r\n" "Content-Length: %u\r\n\r\n",fb->len);
-            Status = httpd_Statusp_send_chunk(req, part_buf, len); // send the created header
+            Status = httpd_resp_send_chunk(req, part_buf, len); // send the created header
         }
 
         if(Status == ESP_OK) { // if still not broken
-            Status = httpd_Statusp_send_chunk(req, (const char *)fb->buf, fb->len); //send raw jpeg data
+            Status = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len); //send raw jpeg data
         }
 
         if(Status == ESP_OK) { // if still not broken
-            Status = httpd_Statusp_send_chunk(req, "\r\n", 2); // mark the frame end
+            Status = httpd_resp_send_chunk(req, "\r\n", 2); // mark the frame end
         }
 
         esp_camera_fb_return(fb); // return the frame 

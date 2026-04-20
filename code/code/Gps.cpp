@@ -86,7 +86,7 @@ void GnssTask(void *param){
           fields[field++] = Pointer_GNSS; // set the postion in the feild vector to pointer_GNSS
           Pointer_GNSS = strchr(Pointer_GNSS, ','); // make it so the feilds are seperated by the commas
           if (Pointer_GNSS) { // checks the pointer is valid
-            *Pointer_GNSS = '\0'; set the charicter is null
+            *Pointer_GNSS = '\0';// set the charicter is null
             Pointer_GNSS++; // move to the next character
           }
         }
