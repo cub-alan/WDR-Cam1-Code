@@ -37,7 +37,7 @@ bool Send_File(File file) {
 
     HTTPClient http;
 
-    String serverURL = "";
+    String serverURL = "";// fill with relevent IP
 
     http.begin(serverURL);
 
