@@ -29,10 +29,9 @@ void Light_Check() {
 
             // set each LED of the ring to pure white
             for (int i = 0; i < NUM_LEDS; i++) { 
-                Ring.setPixelColor(i, Ring.Color(0, 0, 0, 255)); 
+                Ring.setPixelColor(i, Ring.Color(255, 255, 255)); 
             }
             Ring.show(); // show the set values
-            Serial.print("Light on\n");
         }
         else{ // if above the threshold
             // turn off the LED ring
