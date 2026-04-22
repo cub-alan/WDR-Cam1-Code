@@ -5,8 +5,8 @@ static SemaphoreHandle_t SDMutex = NULL;
 static bool SD_send = false;
 static File root;
 static File currentFile;
-String Detection_IP = "192.168.4.128"; // on Robot-Stu1
-//String Detection_IP = "172.20.10.2"; // on iPhone
+//String Detection_IP = "192.168.4.128"; // on Robot-Stu1
+String Detection_IP = "172.20.10.2"; // on iPhone
 
 void SD_Init() {
     delay(200);
