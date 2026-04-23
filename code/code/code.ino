@@ -2,19 +2,20 @@
 //this file is to intergrate my other code together to create the initialisation and loop for the camera 1 operation
 
 #include "MyLib.hpp"
+#include <ESPmDNS.h>
 
 // create the two modes the sytem can be in if wifi is connected or not
 enum SystemMode {
   MODE_WIFI,
   MODE_SD
 };
+
 SystemMode currentMode = MODE_SD; // sets the defualt mode to SD as wifi is not yet connected
 
 #define Sample_Sync_Pin D1 // offline image sync between cams
 volatile uint32_t sample_id = 0; // id to match data from same sample
 
 unsigned long Prev_Sample = 0;
-const unsigned long Sample = 2000;
 
 void setup() {
 
@@ -54,10 +55,6 @@ void setup() {
     Serial.print("for camera use 'http://");
     Serial.print(WiFi.localIP()); // paste the ip of the camera stream 
     Serial.println("/stream1");
-
-    Serial.print("for location stats use 'http://");
-    Serial.print(WiFi.localIP()); // paste the ip of the gnss stream
-    Serial.println("/status");
   }
 }
 
@@ -122,9 +119,6 @@ void loop()
       Serial.print(WiFi.localIP()); // paste the ip of the camera stream 
       Serial.println("/stream1");
 
-      Serial.print("for location stats use 'http://");
-      Serial.print(WiFi.localIP()); // paste the ip of the gnss stream 
-      Serial.println("/status");
     }
   } 
   // switches to sd mode if wifi disconected and not alreay in sd mode
@@ -154,4 +148,5 @@ void loop()
       Trigger_Sample(); // execute the sampling function
     }
   }
+  vTaskDelay(10);
 }
