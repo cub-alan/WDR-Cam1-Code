@@ -5,6 +5,7 @@ static SemaphoreHandle_t SDMutex = NULL;
 static bool SD_send = false;
 static File root;
 static File currentFile;
+
 //String Detection_IP = "192.168.4.128"; // on Robot-Stu1
 String Detection_IP = "172.20.10.2"; // on iPhone
 
@@ -31,11 +32,12 @@ void SD_Init() {
 
     xTaskCreatePinnedToCore(SD_Task,"SD Task",8192,NULL,2,NULL,1); // create a multithreading task pinned to core 1
 }
+
 void SD_Start_Sending() {
     if (xSemaphoreTake(SDMutex, portMAX_DELAY)) { // check the mutex is free
         // open the file and set the send variable to true
         root = SD_MMC.open("/");
-        currentFile = File();
+        currentFile = root.openNextFile();
         SD_send = true;
 
         xSemaphoreGive(SDMutex); // give back the mutex
@@ -45,6 +47,7 @@ void SD_Start_Sending() {
 void SD_Stop_Sending() {
     SD_send = false; // stop the code from sending data
 }
+
 bool Send_File(File file) {
     if (WiFi.status() != WL_CONNECTED) { // if wifi connection failes return false
         return false;
@@ -91,36 +94,29 @@ void SD_Task(void *param) {
         }
 
         if (xSemaphoreTake(SDMutex, pdMS_TO_TICKS(50))){ // check if mutex is free 
-            if (!currentFile) { //
-                currentFile = root.openNextFile();
-
-                if (!currentFile) {
-                    root.close();
-                    SD_send = false;
-                    xSemaphoreGive(SDMutex);
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    continue;
-                }
+            if (!currentFile) {
+                root.close();
+                SD_send = false;
+                xSemaphoreGive(SDMutex);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                continue;
             }
 
-            if (currentFile) {
-
-                String filename = String(currentFile.name());
-
-                bool Check = Send_File(currentFile);
-
-                currentFile.close();   // MUST close before delete
-
-                if (Check) {
-                    if (!SD_MMC.remove(filename)) {
-                        Serial.println("Failed to delete: " + filename);
-                    } 
-                }
-                else {
-                    Serial.println("Upload failed, keeping: " + filename);
-                }
-                currentFile = File(); // reset
+            String filename = String(currentFile.name());
+            if (!filename.startsWith("/")){ 
+                filename = "/" + filename;
             }
+            bool ok = Send_File(currentFile);
+
+            currentFile.close();
+
+            if (ok) {
+                SD_MMC.remove(filename);
+            } else {
+                Serial.println("Upload failed: " + filename);
+            }
+
+            currentFile = root.openNextFile(); 
 
             xSemaphoreGive(SDMutex);
         }
@@ -214,5 +210,9 @@ esp_err_t SD_Delete_Handler(httpd_req_t *req) {
     } else {
         return httpd_resp_send_500(req);
     }
+}
+
+bool SD_Busy() {
+    return SD_send;
 }
 

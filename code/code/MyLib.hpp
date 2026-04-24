@@ -7,7 +7,7 @@
 
 // include all of my librarys in one place 
 #include <WiFi.h>
-#include "Gps.hpp"m
+#include "Gps.hpp"
 #include "Cam.hpp"
 #include "Server.hpp"
 #include "SD.hpp"

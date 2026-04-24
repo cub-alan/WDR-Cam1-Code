@@ -46,10 +46,14 @@ void setup() {
   WIFI_Connect(); // attempt to connect to the wifi
   
   if (WiFi.status() == WL_CONNECTED){ // if wifi is connected
-    Cam1_Server_Init(); // initialise the server for camera 1
     currentMode = MODE_WIFI; // set the mode to WIFI
-
     SD_Start_Sending();
+
+    while (SD_Busy()) {
+        return;
+    }
+
+    Cam1_Server_Init();
 
     // print out the weblinks for the Camera and gnss
     Serial.print("for camera use 'http://");
@@ -98,6 +102,7 @@ void Trigger_Sample() {
 void loop()
 {
   static bool server_running = (WiFi.status() == WL_CONNECTED); // retreive the bool value for wifi connection status
+  static bool sd_upload_started = false;
   static unsigned long WIFI_Retry = 0; // create a variable to be able to do non blocking timers
 
   Light_Check(); // read the ldr vlue and if below the threshold turn on the ring light
@@ -106,21 +111,36 @@ void loop()
   // sets the mode to wifi if not already in wifi mode
   if (WiFi.status() == WL_CONNECTED){
     if (currentMode != MODE_WIFI){
+
       currentMode = MODE_WIFI;
       Serial.println("Switched to WIFI mode");
 
-      Cam1_Server_Init(); // start the server for the camera
-      server_running = true; // set the server activity check to true
-
       SD_Start_Sending(); // start snding any data on the sd card across wifi
 
-      // print out the weblinks for the Camera and gnss
-      Serial.print("for camera use 'http://");
-      Serial.print(WiFi.localIP()); // paste the ip of the camera stream 
-      Serial.println("/stream1");
+      sd_upload_started = true;
+
+      server_running = false; // set the server activity check to true
 
     }
+    if(sd_upload_started){
+
+      if(!SD_Busy){
+
+        sd_upload_started = false;
+        if (!server_running){
+
+          Cam1_Server_Init();
+          server_running = true;
+
+          // print out the weblinks for the Camera and gnss
+          Serial.print("for camera use 'http://");
+          Serial.print(WiFi.localIP()); // paste the ip of the camera stream 
+          Serial.println("/stream1");
+        }
+      }
+    }
   } 
+
   // switches to sd mode if wifi disconected and not alreay in sd mode
   else{
     if (currentMode != MODE_SD){
@@ -130,8 +150,8 @@ void loop()
       SD_Stop_Sending(); // stop attempting to send data over wifi
 
       if (server_running) { // if the server is active
-      httpd_stop(Server); // deactivate the server
-      server_running = false; // set the checking int to false
+        httpd_stop(Server); // deactivate the server
+        server_running = false; // set the checking int to false
       }
     }
   }
