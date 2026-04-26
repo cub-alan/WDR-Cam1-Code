@@ -14,6 +14,24 @@ const char* password = "12345678";
 
 httpd_handle_t Server = NULL; // create the server handle and set it to null
 
+esp_err_t Mode_Handler(httpd_req_t *req) {
+    char buf[32];
+
+    if (httpd_req_get_url_query_str(req, buf, sizeof(buf)) == ESP_OK) {
+
+        if (strstr(buf, "mode=stream")) {
+            currentMode = MODE_STREAM;
+            Serial.println("Switched to STREAM mode");
+        } 
+        else if (strstr(buf, "mode=sd")) {
+            currentMode = MODE_SD;
+            Serial.println("Switched to SD mode");
+        }
+    }
+
+    return httpd_resp_sendstr(req, "OK");
+}
+
 esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam stream  is open
 
     httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame"); // creates the continuous stream
@@ -21,7 +39,7 @@ esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam 
 
     char json[192];
 
-    while(true) { 
+    while(currentMode == MODE_STREAM) { 
         camera_fb_t * fb = esp_camera_fb_get(); // take a capture of the image
 
         if (!fb) { // if the image isnt received exit loop
@@ -84,10 +102,15 @@ void Cam1_Server_Init() {
     static httpd_uri_t Stream_URI = {.uri = "/stream1", .method = HTTP_GET, .handler = Cam_Stream_Handler, .user_ctx  = NULL}; 
     static httpd_uri_t GNSS_URI = {.uri = "/gnss",.method = HTTP_GET,.handler = GPS_Status_Update,.user_ctx = NULL};
 
+    static httpd_uri_t Mode_Check = {.uri = "/mode",.method = HTTP_GET,.handler = Mode_Handler,.user_ctx = NULL};
+
+
     // Start the server
     if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
         httpd_register_uri_handler(Server, &Stream_URI); // create the cameras page on the server 
         httpd_register_uri_handler(Server, &GNSS_URI);
+
+        httpd_register_uri_handler(Server, &Mode_Check);
 
         Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
     }

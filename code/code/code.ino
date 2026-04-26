@@ -6,11 +6,11 @@
 
 // create the two modes the sytem can be in if wifi is connected or not
 enum SystemMode {
-  MODE_WIFI,
+  MODE_STREAM,
   MODE_SD
 };
 
-SystemMode currentMode = MODE_SD; // sets the defualt mode to SD as wifi is not yet connected
+volatile SystemMode currentMode = MODE_SD;
 
 #define Sample_Sync_Pin D1 // offline image sync between cams
 volatile uint32_t sample_id = 0; // id to match data from same sample
@@ -46,12 +46,7 @@ void setup() {
   WIFI_Connect(); // attempt to connect to the wifi
   
   if (WiFi.status() == WL_CONNECTED){ // if wifi is connected
-    currentMode = MODE_WIFI; // set the mode to WIFI
     SD_Start_Sending();
-
-    while (SD_Busy()) {
-        return;
-    }
 
     Cam1_Server_Init();
 
@@ -72,6 +67,7 @@ void Trigger_Sample() {
   digitalWrite(Sample_Sync_Pin, LOW); // stop the pulse
 
   camera_fb_t *fb = esp_camera_fb_get(); // get the current matrix frame
+
   if (fb) { // if the frame is received 
 
     String filename = "/cam1_" + String(sample_id) + ".jpg"; //name the cam 1 file of this id group
@@ -91,8 +87,7 @@ void Trigger_Sample() {
     File file = SD_MMC.open(filename, FILE_WRITE); // create the file in writeable format
     if (file) { // check if the file is created 
       // print the gnss data into the file
-      file.printf( "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d}",
-      GPS.lat, GPS.lon, GPS.alt,GPS.satellites,GPS.hour, GPS.min, GPS.sec);
+      file.printf( "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"h\":%d,\"m\":%d,\"s\":%d}",GPS.lat, GPS.lon, GPS.alt,GPS.satellites,GPS.hour, GPS.min, GPS.sec);
       file.close(); // close the file
     }
     xSemaphoreGive(GPS.mutex); // return the mutex for the gnss
@@ -102,58 +97,37 @@ void Trigger_Sample() {
 void loop()
 {
   static bool server_running = (WiFi.status() == WL_CONNECTED); // retreive the bool value for wifi connection status
-  static bool sd_upload_started = false;
+  static bool sd_active = false;
   static unsigned long WIFI_Retry = 0; // create a variable to be able to do non blocking timers
 
   Light_Check(); // read the ldr vlue and if below the threshold turn on the ring light
   vTaskDelay(pdMS_TO_TICKS(10));
 
-  // sets the mode to wifi if not already in wifi mode
-  if (WiFi.status() == WL_CONNECTED){
-    if (currentMode != MODE_WIFI){
+  if (currentMode == MODE_STREAM) {
 
-      currentMode = MODE_WIFI;
-      Serial.println("Switched to WIFI mode");
-
-      SD_Start_Sending(); // start snding any data on the sd card across wifi
-
-      sd_upload_started = true;
-
-      server_running = false; // set the server activity check to true
-
-    }
-    if(sd_upload_started){
-
-      if(!SD_Busy){
-
-        sd_upload_started = false;
-        if (!server_running){
-
+      if (!server_running) {
+          Serial.println("Now swapping to Cam Mode");
           Cam1_Server_Init();
           server_running = true;
-
-          // print out the weblinks for the Camera and gnss
-          Serial.print("for camera use 'http://");
-          Serial.print(WiFi.localIP()); // paste the ip of the camera stream 
-          Serial.println("/stream1");
-        }
       }
-    }
+
+      SD_Stop_Sending();
+
   } 
+  else if (currentMode == MODE_SD) {
 
-  // switches to sd mode if wifi disconected and not alreay in sd mode
-  else{
-    if (currentMode != MODE_SD){
-      currentMode = MODE_SD;
-      Serial.println("Switched to SD mode");
-
-      SD_Stop_Sending(); // stop attempting to send data over wifi
-
-      if (server_running) { // if the server is active
-        httpd_stop(Server); // deactivate the server
-        server_running = false; // set the checking int to false
+      if (server_running) {
+          Serial.println("Now swapping to SD Mode");
+          httpd_stop(Server);
+          server_running = false;
       }
-    }
+
+      SD_Start_Sending();
+
+      if (millis() - Prev_Sample > 2000) {
+          Prev_Sample = millis();
+          Trigger_Sample();
+      }
   }
 
   if (WiFi.status() == WL_DISCONNECTED && millis() - WIFI_Retry > 5000) { // if the wifi disconects for longer then five seconds
@@ -162,11 +136,5 @@ void loop()
     WiFi.begin(ssid, password); // start the wifi
   }
 
-  if (currentMode == MODE_SD) { // if in sd card mode
-    if (millis() - Prev_Sample > 2000) { // every 2 seconds
-      Prev_Sample = millis(); // set the variable to the current time to allow for more sampling to be done
-      Trigger_Sample(); // execute the sampling function
-    }
-  }
-  vTaskDelay(10);
+  vTaskDelay(pdMS_TO_TICKS(10));
 }
