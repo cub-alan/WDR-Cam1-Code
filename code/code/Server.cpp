@@ -12,25 +12,35 @@
 const char* ssid = "iPhone"; 
 const char* password = "12345678";
 
+extern volatile bool stream_active;
+
 httpd_handle_t Server = NULL; // create the server handle and set it to null
 
 
 esp_err_t Mode_Handler(httpd_req_t *req) {
     char buf[32];
+    size_t buf_len;
 
-    if (httpd_req_get_url_query_str(req, buf, sizeof(buf)) == ESP_OK) {
+    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+        char param[16];
 
-        if (strstr(buf, "mode=stream")) {
-            currentMode = MODE_STREAM;
-            Serial.println("Switched to STREAM mode");
-        } 
-        else if (strstr(buf, "mode=sd")) {
-            currentMode = MODE_SD;
-            Serial.println("Switched to SD mode");
+        if (httpd_query_key_value(buf, "mode", param, sizeof(param)) == ESP_OK) {
+
+            if (strcmp(param, "stream") == 0) {
+                currentMode = MODE_STREAM;
+                Serial.println("Switched to STREAM");
+            }
+            else if (strcmp(param, "sd") == 0) {
+                currentMode = MODE_SD;
+                Serial.println("Switched to SD");
+            }
         }
+
     }
+    free(buf);
 
     return httpd_resp_sendstr(req, "OK");
+    return ESP_OK;
 }
 
 esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam stream  is open
@@ -40,7 +50,8 @@ esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam 
 
     char json[192];
 
-    while(currentMode == MODE_STREAM) { 
+    while(stream_active && currentMode == MODE_STREAM) { 
+
         camera_fb_t * fb = esp_camera_fb_get(); // take a capture of the image
 
         if (!fb) { // if the image isnt received exit loop
@@ -73,19 +84,16 @@ esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam 
 
         int len = snprintf(header, sizeof(header),"Content-Type: image/jpeg\r\n""Content-Length: %u\r\n""X-GNSS: %s\r\n\r\n",fb->len, json);
 
-        if (httpd_resp_send_chunk(req, header, len) != ESP_OK){
-            break;
-        }
-        if (httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len) != ESP_OK){
-            break;
-        }
-        if (httpd_resp_send_chunk(req, "\r\n", 2) != ESP_OK){
-            break;
-        }
+        httpd_resp_send_chunk(req, header, len);
+        
+        httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+        
+        httpd_resp_send_chunk(req, "\r\n", 2);
+       
 
         esp_camera_fb_return(fb);
 
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(1);
     }
     return ESP_OK;
 }
@@ -113,7 +121,6 @@ void Cam1_Server_Init() {
 
         httpd_register_uri_handler(Server, &Mode_Check);
 
-        Serial.println("Camera 1 server began"); // print to the terminal so you now the server is ready
     }
 }
 
@@ -132,7 +139,7 @@ void WIFI_Connect(){
     }
 
     if (WiFi.status() == WL_CONNECTED) { // if connected
-        Serial.println("\n WiFi connected");
+        Serial.println("\nWiFi connected");
         Serial.print("IP: ");
         Serial.println(WiFi.localIP()); //prin the IP to the terminal
     } else { // if not connected swap to SD usage

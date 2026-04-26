@@ -4,7 +4,8 @@
 #include "MyLib.hpp"
 #include <ESPmDNS.h>
 
-volatile SystemMode currentMode = MODE_SD;
+volatile SystemMode currentMode = MODE_STREAM;
+volatile bool stream_active = true;
 
 #define Sample_Sync_Pin D1 // offline image sync between cams
 volatile uint32_t sample_id = 0; // id to match data from same sample
@@ -40,8 +41,6 @@ void setup() {
   WIFI_Connect(); // attempt to connect to the wifi
   
   if (WiFi.status() == WL_CONNECTED){ // if wifi is connected
-    SD_Start_Sending();
-
     Cam1_Server_Init();
 
     // print out the weblinks for the Camera and gnss
@@ -99,22 +98,19 @@ void loop()
 
   if (currentMode == MODE_STREAM) {
 
-      if (!server_running) {
-          Serial.println("Now swapping to Cam Mode");
+      // ensure stream is running
+      if (!stream_active) {
+          stream_active = true;
           Cam1_Server_Init();
-          server_running = true;
       }
 
       SD_Stop_Sending();
+  }
 
-  } 
   else if (currentMode == MODE_SD) {
 
-      if (server_running) {
-          Serial.println("Now swapping to SD Mode");
-          httpd_stop(Server);
-          server_running = false;
-      }
+      // stop stream safely (NO httpd_stop)
+      stream_active = false;
 
       SD_Start_Sending();
 
@@ -123,6 +119,8 @@ void loop()
           Trigger_Sample();
       }
   }
+
+  vTaskDelay(pdMS_TO_TICKS(10));
 
   if (WiFi.status() == WL_DISCONNECTED && millis() - WIFI_Retry > 5000) { // if the wifi disconects for longer then five seconds
     WIFI_Retry = millis(); // set the retry to the millis for future measurements 
