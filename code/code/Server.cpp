@@ -14,6 +14,7 @@ const char* password = "12345678";
 
 httpd_handle_t Server = NULL; // create the server handle and set it to null
 
+
 esp_err_t Mode_Handler(httpd_req_t *req) {
     char buf[32];
 

@@ -4,12 +4,6 @@
 #include "MyLib.hpp"
 #include <ESPmDNS.h>
 
-// create the two modes the sytem can be in if wifi is connected or not
-enum SystemMode {
-  MODE_STREAM,
-  MODE_SD
-};
-
 volatile SystemMode currentMode = MODE_SD;
 
 #define Sample_Sync_Pin D1 // offline image sync between cams

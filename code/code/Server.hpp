@@ -22,4 +22,12 @@ extern httpd_handle_t Server;
 void Cam1_Server_Init();
 void WIFI_Connect();
 
+// create the two modes the sytem can be in if wifi is connected or not
+enum SystemMode {
+  MODE_STREAM,
+  MODE_SD
+};
+
+extern volatile SystemMode currentMode;
+
 #endif
