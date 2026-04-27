@@ -18,29 +18,27 @@ httpd_handle_t Server = NULL; // create the server handle and set it to null
 
 
 esp_err_t Mode_Handler(httpd_req_t *req) {
-    char buf[32];
-    size_t buf_len;
+    char query[64];
 
-    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
         char param[16];
 
-        if (httpd_query_key_value(buf, "mode", param, sizeof(param)) == ESP_OK) {
-
+        if (httpd_query_key_value(query, "mode", param, sizeof(param)) == ESP_OK) {
             if (strcmp(param, "stream") == 0) {
                 currentMode = MODE_STREAM;
-                Serial.println("Switched to STREAM");
+                stream_active = true;
+                Serial.println("Switched to STREAM mode");
             }
             else if (strcmp(param, "sd") == 0) {
                 currentMode = MODE_SD;
-                Serial.println("Switched to SD");
+                stream_active = false;
+                Serial.println("Switched to SD mode");
             }
         }
-
     }
-    free(buf);
 
+    httpd_resp_set_type(req, "text/plain");
     return httpd_resp_sendstr(req, "OK");
-    return ESP_OK;
 }
 
 esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam stream  is open
@@ -113,6 +111,10 @@ void Cam1_Server_Init() {
 
     static httpd_uri_t Mode_Check = {.uri = "/mode",.method = HTTP_GET,.handler = Mode_Handler,.user_ctx = NULL};
 
+    static httpd_uri_t SD_List_URI = {.uri = "/sd/list",.method = HTTP_GET,.handler = SD_List_Handler,.user_ctx = NULL};
+    static httpd_uri_t SD_File_URI = {.uri = "/sd/file",.method = HTTP_GET,.handler = SD_File_Handler,.user_ctx = NULL};
+    static httpd_uri_t SD_Delete_URI = {.uri = "/sd/delete",.method = HTTP_GET,.handler = SD_Delete_Handler,.user_ctx = NULL};
+
 
     // Start the server
     if (httpd_start(&Server, &Cam1_Server_Config) == ESP_OK) { //check everything is set up correctly start the server
@@ -120,6 +122,9 @@ void Cam1_Server_Init() {
         httpd_register_uri_handler(Server, &GNSS_URI);
 
         httpd_register_uri_handler(Server, &Mode_Check);
+        httpd_register_uri_handler(Server, &SD_List_URI);
+        httpd_register_uri_handler(Server, &SD_File_URI);
+        httpd_register_uri_handler(Server, &SD_Delete_URI);
 
     }
 }
@@ -144,5 +149,7 @@ void WIFI_Connect(){
         Serial.println(WiFi.localIP()); //prin the IP to the terminal
     } else { // if not connected swap to SD usage
         Serial.println("\n WiFi failed now using SD mode");
+        currentMode = MODE_SD;
+        stream_active = false;
     }
 }

@@ -105,20 +105,23 @@ void loop()
       }
 
       SD_Stop_Sending();
+      sd_active = false;
   }
 
   else if (currentMode == MODE_SD) {
 
-      // stop stream safely (NO httpd_stop)
-      stream_active = false;
+    stream_active = false;
 
-      SD_Start_Sending();
+    if (!sd_active && WiFi.status() == WL_CONNECTED) {
+        SD_Start_Sending();   // upload/retrieve only when webserver/WiFi exists
+        sd_active = true;
+    }
 
-      if (millis() - Prev_Sample > 2000) {
-          Prev_Sample = millis();
-          Trigger_Sample();
-      }
-  }
+    if (millis() - Prev_Sample > 2000) {
+        Prev_Sample = millis();
+        Trigger_Sample();     // still samples to SD in SD mode
+    }
+}
 
   vTaskDelay(pdMS_TO_TICKS(10));
 

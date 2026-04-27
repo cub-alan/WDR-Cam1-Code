@@ -153,11 +153,19 @@ esp_err_t SD_List_Handler(httpd_req_t *req) {
 
 esp_err_t SD_File_Handler(httpd_req_t *req) {
 
-    char filepath[64];
-    if (httpd_req_get_url_query_str(req, filepath, sizeof(filepath)) != ESP_OK) {
+    char query[128];
+    char filepath[96];
+
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "name", filepath, sizeof(filepath)) != ESP_OK) {
         httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_send(req, "Bad Request", HTTPD_RESP_USE_STRLEN);
-        return ESP_FAIL;
+        return httpd_resp_sendstr(req, "Missing file name");
+    }
+
+    if (filepath[0] != '/') {
+        char fixed[96];
+        snprintf(fixed, sizeof(fixed), "/%s", filepath);
+        strncpy(filepath, fixed, sizeof(filepath));
     }
 
     if (!xSemaphoreTake(SDMutex, pdMS_TO_TICKS(100))) {
