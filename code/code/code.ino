@@ -98,12 +98,6 @@ void loop()
 
   if (currentMode == MODE_STREAM) {
 
-      // ensure stream is running
-      if (!stream_active) {
-          stream_active = true;
-          Cam1_Server_Init();
-      }
-
       SD_Stop_Sending();
       sd_active = false;
   }

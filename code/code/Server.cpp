@@ -41,19 +41,20 @@ esp_err_t Mode_Handler(httpd_req_t *req) {
     return httpd_resp_sendstr(req, "OK");
 }
 
-esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam stream  is open
+esp_err_t Cam_Stream_Handler(httpd_req_t *req) {
 
-    httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame"); // creates the continuous stream
+    stream_active = true;
+
+    httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
-    char json[192];
+    while (currentMode == MODE_STREAM) {
 
-    while(stream_active && currentMode == MODE_STREAM) { 
+        camera_fb_t *fb = esp_camera_fb_get();
 
-        camera_fb_t * fb = esp_camera_fb_get(); // take a capture of the image
-
-        if (!fb) { // if the image isnt received exit loop
+        if (!fb) {
             Serial.println("Camera capture failed");
+            stream_active = false;
             return ESP_FAIL;
         }
 
@@ -72,27 +73,52 @@ esp_err_t Cam_Stream_Handler(httpd_req_t *req) { // function that runs when cam 
             xSemaphoreGive(GPS.mutex);
         }
 
-        snprintf(json, sizeof(json),"{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"valid\":%d}",lat, lon, alt, sats, valid);
-
-        if (httpd_resp_send_chunk(req, "--frame\r\n", 9) != ESP_OK){
-             break;
-        }
+        char json[192];
+        snprintf(
+            json,
+            sizeof(json),
+            "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.2f,\"sats\":%d,\"valid\":%d}",
+            lat, lon, alt, sats, valid
+        );
 
         char header[256];
+        int len = snprintf(
+            header,
+            sizeof(header),
+            "Content-Type: image/jpeg\r\n"
+            "Content-Length: %u\r\n"
+            "X-GNSS: %s\r\n\r\n",
+            fb->len,
+            json
+        );
 
-        int len = snprintf(header, sizeof(header),"Content-Type: image/jpeg\r\n""Content-Length: %u\r\n""X-GNSS: %s\r\n\r\n",fb->len, json);
+        esp_err_t res = ESP_OK;
 
-        httpd_resp_send_chunk(req, header, len);
-        
-        httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
-        
-        httpd_resp_send_chunk(req, "\r\n", 2);
-       
+        res = httpd_resp_send_chunk(req, "--frame\r\n", 9);
+
+        if (res == ESP_OK) {
+            res = httpd_resp_send_chunk(req, header, len);
+        }
+
+        if (res == ESP_OK) {
+            res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+        }
+
+        if (res == ESP_OK) {
+            res = httpd_resp_send_chunk(req, "\r\n", 2);
+        }
 
         esp_camera_fb_return(fb);
 
-        vTaskDelay(1);
+        if (res != ESP_OK) {
+            Serial.println("Stream client disconnected");
+            break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
+
+    stream_active = false;
     return ESP_OK;
 }
 
