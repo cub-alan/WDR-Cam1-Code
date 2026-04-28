@@ -37,8 +37,8 @@ void Cam1_init() {
     if (psramFound()) { // if Psram is active
         // increase to QVGA with an improved quality and 
         config.frame_size = FRAMESIZE_QVGA;
-        config.jpeg_quality = 10;
-        config.fb_count = 2;
+        config.jpeg_quality = 15;
+        config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_LATEST;
         Serial.println("PSRAM working");
@@ -46,7 +46,7 @@ void Cam1_init() {
      else { // if no Psram
         //initialise to QVGA at a lower qulity
         config.frame_size = FRAMESIZE_QVGA;
-        config.jpeg_quality = 12;
+        config.jpeg_quality = 15;
         config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_DRAM;
         Serial.println("PSRAM failed");
