@@ -4,8 +4,8 @@
 #include "MyLib.hpp"
 #include <ESPmDNS.h>
 
-volatile SystemMode currentMode = MODE_STREAM;
-volatile bool stream_active = true;
+volatile SystemMode currentMode = MODE_STREAM; //  set the starting mode
+volatile bool stream_active = true; 
 
 #define Sample_Sync_Pin D1 // offline image sync between cams
 volatile uint32_t sample_id = 0; // id to match data from same sample
@@ -96,22 +96,19 @@ void loop()
   Light_Check(); // read the ldr vlue and if below the threshold turn on the ring light
   vTaskDelay(pdMS_TO_TICKS(10));
 
-  if (currentMode == MODE_STREAM) {
-
-      SD_Stop_Sending();
+  if (currentMode == MODE_STREAM) { // if in streaming mode
+      SD_Stop_Sending(); // dont send SD card 
       sd_active = false;
   }
 
-  else if (currentMode == MODE_SD) {
-
-    stream_active = false;
-
-    if (!sd_active && WiFi.status() == WL_CONNECTED) {
+  else if (currentMode == MODE_SD) { // if in SD mode
+    stream_active = false; // turn off the stream
+    if (!sd_active && WiFi.status() == WL_CONNECTED) { // if SD is availabe
         SD_Start_Sending();   // upload/retrieve only when webserver/WiFi exists
         sd_active = true;
     }
 
-    if (millis() - Prev_Sample > 2000) {
+    if (millis() - Prev_Sample > 2000) { // every 2 seconds
         Prev_Sample = millis();
         Trigger_Sample();     // still samples to SD in SD mode
     }
